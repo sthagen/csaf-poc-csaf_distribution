@@ -137,7 +137,7 @@ func (p *processor) clean() {
 }
 
 // run calls checkDomain function for each domain in the given "domains" parameter.
-// Then it calls the report method on each report from the given "reporters" paramerter for each domain.
+// Then it calls the report method on each report from the given "reporters" parameter for each domain.
 // It returns a pointer to the report and nil, otherwise an error.
 func (p *processor) run(reporters []reporter, domains []string) (*Report, error) {
 
@@ -826,9 +826,10 @@ func extractProviderURL(r io.Reader) (string, error) {
 	return "", nil
 }
 
-// checkProviderMetadata checks the provider-metatdata if exists, decodes,
-// and validates against the JSON schema. According to the result the respective
-// error messages are passed to the badProviderMetadatas method in case of errors.
+// checkProviderMetadata checks provider-metadata.json. If it exists,
+// decodes, and validates against the JSON schema.
+// According to the result, the respective error messages are passed
+// to the badProviderMetadatas method.
 // It returns nil if all checks are passed.
 func (p *processor) checkProviderMetadata(domain string) error {
 
@@ -856,6 +857,7 @@ func (p *processor) checkProviderMetadata(domain string) error {
 			for _, msg := range errors {
 				p.badProviderMetadata(strings.ReplaceAll(msg, `%`, `%%`))
 			}
+			p.badProviderMetadata("STOPPING here - cannot perform other checks.")
 			return errStop
 		}
 		p.pmdURL = url
@@ -868,6 +870,7 @@ func (p *processor) checkProviderMetadata(domain string) error {
 
 	if p.pmdURL == "" {
 		p.badProviderMetadata("No provider-metadata.json found.")
+		p.badProviderMetadata("STOPPING here - cannot perform other checks.")
 		return errStop
 	}
 	return nil
