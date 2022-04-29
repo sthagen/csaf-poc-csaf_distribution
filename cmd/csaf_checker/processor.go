@@ -464,12 +464,7 @@ func (p *processor) processROLIEFeed(feed string) error {
 	}
 
 	// Extract the CSAF files from feed.
-	var files []string
-	for _, f := range rfeed.Feed.Entry {
-		for i := range f.Link {
-			files = append(files, f.Link[i].HRef)
-		}
-	}
+	files := rfeed.Files()
 
 	if err := p.integrity(files, base, rolieMask, p.badProviderMetadata.add); err != nil &&
 		err != errContinue {
@@ -929,7 +924,7 @@ func (p *processor) checkPGPKeys(domain string) error {
 
 	p.badPGPs.use()
 
-	src, err := p.expr.Eval("$.pgp_keys", p.pmd)
+	src, err := p.expr.Eval("$.public_openpgp_keys", p.pmd)
 	if err != nil {
 		p.badPGPs.add("No public OpenPGP keys found: %v.", err)
 		return errContinue
