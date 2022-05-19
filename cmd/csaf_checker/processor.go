@@ -59,6 +59,7 @@ type processor struct {
 	badFolders           topicMessages
 	badWellknownMetadata topicMessages
 	badDNSPath           topicMessages
+	badDirListings       topicMessages
 
 	expr *util.PathEval
 }
@@ -85,6 +86,8 @@ const (
 	rolieChangesMask
 	indexMask
 	changesMask
+	listingMask
+	rolieListingMask
 )
 
 func (wt whereType) String() string {
@@ -99,6 +102,10 @@ func (wt whereType) String() string {
 		return "index.txt"
 	case changesMask:
 		return "changes.csv"
+	case listingMask:
+		return "directory listing"
+	case rolieListingMask:
+		return "directory listing [ROLIE]"
 	default:
 		var mixed []string
 		for mask := rolieMask; mask <= changesMask; mask <<= 1 {
@@ -157,6 +164,10 @@ func (p *processor) clean() {
 	p.badSecurity.reset()
 	p.badIndices.reset()
 	p.badChanges.reset()
+	p.badFolders.reset()
+	p.badWellknownMetadata.reset()
+	p.badDNSPath.reset()
+	p.badDirListings.reset()
 }
 
 // run calls checkDomain function for each domain in the given "domains" parameter.
@@ -193,6 +204,7 @@ func (p *processor) checkDomain(domain string) error {
 		(*processor).checkSecurity,
 		(*processor).checkCSAFs,
 		(*processor).checkMissing,
+		(*processor).checkListing,
 		(*processor).checkWellknownMetadataReporter,
 		(*processor).checkDNSPathReporter,
 	} {
@@ -241,7 +253,7 @@ func (p *processor) checkRedirect(r *http.Request, via []*http.Request) error {
 	p.redirects[url] = path.String()
 
 	if len(via) > 10 {
-		return errors.New("Too many redirections")
+		return errors.New("too many redirections")
 	}
 	return nil
 }
@@ -453,14 +465,37 @@ func (p *processor) processROLIEFeed(feed string) error {
 			feed, res.StatusCode, res.Status)
 		return errContinue
 	}
-	rfeed, err := func() (*csaf.ROLIEFeed, error) {
+
+	rfeed, rolieDoc, err := func() (*csaf.ROLIEFeed, interface{}, error) {
 		defer res.Body.Close()
-		return csaf.LoadROLIEFeed(res.Body)
+		all, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, nil, err
+		}
+		feed, err := csaf.LoadROLIEFeed(bytes.NewReader(all))
+		if err != nil {
+			return nil, nil, err
+		}
+		var rolieDoc interface{}
+		err = json.NewDecoder(bytes.NewReader(all)).Decode(&rolieDoc)
+		return feed, rolieDoc, err
+
 	}()
 	if err != nil {
 		p.badProviderMetadata.add("Loading ROLIE feed failed: %v.", err)
 		return errContinue
 	}
+	errors, err := csaf.ValidateROLIE(rolieDoc)
+	if err != nil {
+		return err
+	}
+	if len(errors) > 0 {
+		p.badProviderMetadata.add("%s: Validating against JSON schema failed:", feed)
+		for _, msg := range errors {
+			p.badProviderMetadata.add(strings.ReplaceAll(msg, `%`, `%%`))
+		}
+	}
+
 	base, err := util.BaseURL(feed)
 	if err != nil {
 		p.badProviderMetadata.add("Bad base path: %v", err)
@@ -673,7 +708,7 @@ func (p *processor) checkMissing(string) error {
 	for _, f := range files {
 		v := p.alreadyChecked[f]
 		var where []string
-		for mask := rolieMask; mask <= changesMask; mask <<= 1 {
+		for mask := rolieMask; mask <= rolieListingMask; mask <<= 1 {
 			if maxMask&mask == mask {
 				var in string
 				if v&mask == mask {
@@ -686,6 +721,35 @@ func (p *processor) checkMissing(string) error {
 		}
 		p.badIntegrities.add("%s %s", f, strings.Join(where, ", "))
 	}
+	return nil
+}
+
+// checkListing wents over all found adivisories URLs and checks,
+// if their parent directory is listable.
+func (p *processor) checkListing(string) error {
+
+	p.badDirListings.use()
+
+	pgs := pages{}
+
+	var unlisted []string
+
+	for f := range p.alreadyChecked {
+		found, err := pgs.listed(f, p)
+		if err != nil && err != errContinue {
+			return err
+		}
+		if !found {
+			unlisted = append(unlisted, f)
+		}
+	}
+
+	if len(unlisted) > 0 {
+		sort.Strings(unlisted)
+		p.badDirListings.add("Not listed advisories: %s",
+			strings.Join(unlisted, ", "))
+	}
+
 	return nil
 }
 
@@ -706,6 +770,7 @@ func (p *processor) locateProviderMetadata(
 	client := p.httpClient()
 
 	tryURL := func(url string) (bool, error) {
+		log.Printf("Trying: %v\n", url)
 		res, err := client.Get(url)
 		if err != nil || res.StatusCode != http.StatusOK ||
 			res.Header.Get("Content-Type") != "application/json" {
@@ -723,7 +788,7 @@ func (p *processor) locateProviderMetadata(
 	}
 
 	for _, loc := range providerMetadataLocations {
-		url := "https://" + domain + "/" + loc
+		url := "https://" + domain + "/" + loc + "/provider-metadata.json"
 		ok, err := tryURL(url)
 		if err != nil {
 			if err == errContinue {
@@ -739,32 +804,38 @@ func (p *processor) locateProviderMetadata(
 	// Read from security.txt
 
 	path := "https://" + domain + "/.well-known/security.txt"
+	log.Printf("Searching in: %v\n", path)
 	res, err := client.Get(path)
-	if err != nil {
-		return err
-	}
+	if err == nil && res.StatusCode == http.StatusOK {
+		loc, err := func() (string, error) {
+			defer res.Body.Close()
+			return p.extractProviderURL(res.Body)
+		}()
 
-	if res.StatusCode != http.StatusOK {
-		return nil
-	}
+		if err != nil {
+			log.Printf("did not find provider URL in /.well-known/security.txt, error: %v\n", err)
+		}
 
-	loc, err := func() (string, error) {
-		defer res.Body.Close()
-		return p.extractProviderURL(res.Body)
-	}()
-
-	if err != nil {
-		log.Printf("error: %v\n", err)
-		return nil
-	}
-
-	if loc != "" {
-		if _, err = tryURL(loc); err == errContinue {
-			err = nil
+		if loc != "" {
+			if _, err = tryURL(loc); err == errContinue {
+				err = nil
+			}
+			return err
 		}
 	}
 
-	return err
+	// Read from DNS path
+
+	path = "https://csaf.data.security." + domain
+	ok, err := tryURL(path)
+	if err != nil {
+		return err
+	}
+	if ok {
+		return nil
+	}
+
+	return errStop
 }
 
 func (p *processor) extractProviderURL(r io.Reader) (string, error) {
@@ -773,7 +844,7 @@ func (p *processor) extractProviderURL(r io.Reader) (string, error) {
 		return "", err
 	}
 	if len(urls) == 0 {
-		return "", errors.New("No provider-metadata.json found")
+		return "", errors.New("no provider-metadata.json found")
 	}
 
 	if len(urls) > 1 {
@@ -1009,7 +1080,7 @@ func (p *processor) checkPGPKeys(domain string) error {
 }
 
 // checkWellknownMetadataReporter checks if the provider-metadata.json file is
-// avaialable under the /.well-known/csaf/ directory.
+// available under the /.well-known/csaf/ directory.
 // It returns nil if all checks are passed, otherwise error.
 func (p *processor) checkWellknownMetadataReporter(domain string) error {
 
@@ -1021,7 +1092,7 @@ func (p *processor) checkWellknownMetadataReporter(domain string) error {
 
 	res, err := client.Get(path)
 	if err != nil {
-		p.badWellknownMetadata.add("Fetiching %s failed: %v", path, err)
+		p.badWellknownMetadata.add("Fetching %s failed: %v", path, err)
 		return errContinue
 	}
 	if res.StatusCode != http.StatusOK {
@@ -1042,10 +1113,10 @@ func (p *processor) checkDNSPathReporter(domain string) error {
 
 	p.badDNSPath.use()
 
-	path := "https://csaf.data.security.domain.tld"
+	path := "https://csaf.data.security." + domain
 	res, err := client.Get(path)
 	if err != nil {
-		p.badDNSPath.add("Fetiching %s failed: %v", path, err)
+		p.badDNSPath.add("Fetching %s failed: %v", path, err)
 		return errContinue
 	}
 	if res.StatusCode != http.StatusOK {
@@ -1057,12 +1128,12 @@ func (p *processor) checkDNSPathReporter(domain string) error {
 	defer res.Body.Close()
 	content, err := io.ReadAll(res.Body)
 	if err != nil {
-		p.badDNSPath.add("Error while reading the response form %s", path)
+		p.badDNSPath.add("Error while reading the response from %s", path)
 		return errContinue
 	}
 	hash.Write(content)
 	if !bytes.Equal(hash.Sum(nil), p.pmd256) {
-		p.badDNSPath.add("The csaf.data.security.domain.tld DNS record does not serve the provider-metatdata.json")
+		p.badDNSPath.add("%s does not serve the same provider-metadata.json as previously found", path)
 		return errContinue
 	}
 
