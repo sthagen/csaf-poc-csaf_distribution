@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ProtonMail/gopenpgp/v2/armor"
+	"github.com/ProtonMail/gopenpgp/v2/constants"
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/csaf-poc/csaf_distribution/csaf"
 	"github.com/csaf-poc/csaf_distribution/util"
@@ -112,7 +114,8 @@ func (c *controller) handleSignature(
 		return "", nil, err
 	}
 
-	armored, err := sig.GetArmored()
+	armored, err := armor.ArmorWithTypeAndCustomHeaders(
+		sig.Data, constants.PGPSignatureHeader, "", "")
 	return armored, key, err
 }
 
@@ -255,10 +258,12 @@ func (c *controller) upload(r *http.Request) (interface{}, error) {
 			e.Titel = ex.Title
 			e.Published = csaf.TimeStamp(ex.InitialReleaseDate)
 			e.Updated = csaf.TimeStamp(ex.CurrentReleaseDate)
-			e.Link = []csaf.Link{{
-				Rel:  "self",
-				HRef: csafURL,
-			}}
+			e.Link = []csaf.Link{
+				{Rel: "self", HRef: csafURL},
+				{Rel: "hash", HRef: csafURL + ".sha256"},
+				{Rel: "hash", HRef: csafURL + ".sha512"},
+				{Rel: "signature", HRef: csafURL + ".asc"},
+			}
 			e.Format = csaf.Format{
 				Schema:  "https://docs.oasis-open.org/csaf/csaf/v2.0/csaf_json_schema.json",
 				Version: "2.0",
