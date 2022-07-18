@@ -215,20 +215,43 @@ func (p *processor) run(reporters []reporter, domains []string) (*Report, error)
 	return &report, nil
 }
 
-func (p *processor) checkDomain(domain string) error {
+// domainChecks compiles a list of checks which should be performed
+// for a given domain.
+func (p *processor) domainChecks(domain string) []func(*processor, string) error {
 
-	// TODO: Implement me!
-	for _, check := range []func(*processor, string) error{
+	// If we have a direct domain url we dont need to
+	// perform certain checks.
+	direct := strings.HasPrefix(domain, "https://")
+
+	checks := []func(*processor, string) error{
 		(*processor).checkProviderMetadata,
 		(*processor).checkPGPKeys,
-		(*processor).checkSecurity,
+	}
+
+	if !direct {
+		checks = append(checks, (*processor).checkSecurity)
+	}
+
+	checks = append(checks,
 		(*processor).checkCSAFs,
 		(*processor).checkMissing,
 		(*processor).checkInvalid,
 		(*processor).checkListing,
-		(*processor).checkWellknownMetadataReporter,
-		(*processor).checkDNSPathReporter,
-	} {
+	)
+
+	if !direct {
+		checks = append(checks,
+			(*processor).checkWellknownMetadataReporter,
+			(*processor).checkDNSPathReporter,
+		)
+	}
+
+	return checks
+}
+
+func (p *processor) checkDomain(domain string) error {
+
+	for _, check := range p.domainChecks(domain) {
 		if err := check(p, domain); err != nil && err != errContinue {
 			if err == errStop {
 				return nil
@@ -639,7 +662,13 @@ func (p *processor) processROLIEFeed(feed string) error {
 func (p *processor) checkIndex(base string, mask whereType) error {
 	client := p.httpClient()
 
-	index := base + "/index.txt"
+	bu, err := url.Parse(base)
+	if err != nil {
+		return err
+	}
+
+	index := util.JoinURLPath(bu, "index.txt").String()
+
 	p.checkTLS(index)
 
 	p.badIndices.use()
@@ -680,9 +709,16 @@ func (p *processor) checkIndex(base string, mask whereType) error {
 // of the fields' values and if they are sorted properly. Then it passes the files to the
 // "integrity" functions. It returns error if some test fails, otherwise nil.
 func (p *processor) checkChanges(base string, mask whereType) error {
-	client := p.httpClient()
-	changes := base + "/changes.csv"
+
+	bu, err := url.Parse(base)
+	if err != nil {
+		return err
+	}
+	changes := util.JoinURLPath(bu, "changes.csv").String()
+
 	p.checkTLS(changes)
+
+	client := p.httpClient()
 	res, err := client.Get(changes)
 
 	p.badChanges.use()
@@ -705,6 +741,10 @@ func (p *processor) checkChanges(base string, mask whereType) error {
 		var times []time.Time
 		var files []csaf.AdvisoryFile
 		c := csv.NewReader(res.Body)
+		const (
+			pathColumn = 0
+			timeColumn = 1
+		)
 		for {
 			r, err := c.Read()
 			if err == io.EOF {
@@ -716,11 +756,13 @@ func (p *processor) checkChanges(base string, mask whereType) error {
 			if len(r) < 2 {
 				return nil, nil, errors.New("not enough columns")
 			}
-			t, err := time.Parse(time.RFC3339, r[0])
+			t, err := time.Parse(time.RFC3339, r[timeColumn])
 			if err != nil {
 				return nil, nil, err
 			}
-			times, files = append(times, t), append(files, csaf.PlainAdvisoryFile(r[1]))
+			times, files =
+				append(times, t),
+				append(files, csaf.PlainAdvisoryFile(r[pathColumn]))
 		}
 		return times, files, nil
 	}()
