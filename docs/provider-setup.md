@@ -53,7 +53,7 @@ location /cgi-bin/ {
   fastcgi_param SCRIPT_FILENAME  /usr/lib$fastcgi_script_name;
 
   fastcgi_param PATH_INFO $fastcgi_path_info;
-  fastcgi_param CSAF_CONFIG /usr/lib/csaf/config.toml;
+  fastcgi_param CSAF_CONFIG /etc/csaf/config.toml;
 
   fastcgi_param SSL_CLIENT_VERIFY $ssl_client_verify;
   fastcgi_param SSL_CLIENT_S_DN $ssl_client_s_dn;
@@ -92,7 +92,7 @@ Create `cgi-bin` folder if it not exists: `mkdir -p /usr/lib/cgi-bin/`.
 Rename and place the `csaf_provider` binary file under `/usr/lib/cgi-bin/csaf_provider.go`.
 
 
-Create configuration file under `/usr/lib/csaf/config.toml`
+Create configuration file under `/etc/csaf/config.toml`
 and make sure is has good, restrictive permissions.
 It must be readable by the user(id), which the webserver's fastcgi interface
 uses to start the CGI-binary with,
@@ -103,9 +103,9 @@ Many systems use `www-data` as user id, so you could do something like
 <!-- MARKDOWN-AUTO-DOCS:START (CODE:src=../docs/scripts/setupProviderForITest.sh&lines=84-86) -->
 <!-- The below code snippet is automatically added from ../docs/scripts/setupProviderForITest.sh -->
 ```sh
-sudo touch /usr/lib/csaf/config.toml
-sudo chgrp www-data /usr/lib/csaf/config.toml
-sudo chmod g+r,o-rwx /usr/lib/csaf/config.toml
+sudo touch /etc/csaf/config.toml
+sudo chgrp www-data /etc/csaf/config.toml
+sudo chmod g+r,o-rwx /etc/csaf/config.toml
 ```
 <!-- MARKDOWN-AUTO-DOCS:END -->
 
@@ -117,14 +117,16 @@ Here is a minimal example configuration,
 which you need to customize for a production setup,
 see the [options of `csaf_provider`](https://github.com/csaf-poc/csaf_distribution/blob/main/docs/csaf_provider.md).
 
-<!-- MARKDOWN-AUTO-DOCS:START (CODE:src=../docs/scripts/setupProviderForITest.sh&lines=94-99) -->
+<!-- MARKDOWN-AUTO-DOCS:START (CODE:src=../docs/scripts/setupProviderForITest.sh&lines=94-101) -->
 <!-- The below code snippet is automatically added from ../docs/scripts/setupProviderForITest.sh -->
 ```sh
 # upload_signature = true
-openpgp_private_key = "/usr/lib/csaf/private.asc"
-openpgp_public_key = "/usr/lib/csaf/public.asc"
+openpgp_private_key = "/etc/csaf/private.asc"
+openpgp_public_key = "/etc/csaf/public.asc"
 #tlps = ["green", "red"]
 canonical_url_prefix = "https://localhost:8443"
+categories = ["Example Company Product A", "expr:document.lang"]
+create_service_document = true
 #no_passphrase = true
 ```
 <!-- MARKDOWN-AUTO-DOCS:END -->

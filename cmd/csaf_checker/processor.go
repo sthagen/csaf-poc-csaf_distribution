@@ -220,11 +220,41 @@ func (p *processor) run(reporters []reporter, domains []string) (*Report, error)
 		for _, r := range reporters {
 			r.report(p, domain)
 		}
+
+		if err := p.fillMeta(domain); err != nil {
+			log.Printf("Filling meta data failed: %v\n", err)
+		}
+
 		report.Domains = append(report.Domains, domain)
 		p.clean()
 	}
 
 	return &report, nil
+}
+
+// fillMeta fills the report with extra informations from provider metadata.
+func (p *processor) fillMeta(domain *Domain) error {
+
+	if p.pmd == nil {
+		return nil
+	}
+
+	var (
+		pub  csaf.Publisher
+		role csaf.MetadataRole
+	)
+
+	if err := p.expr.Match([]util.PathEvalMatcher{
+		{Expr: `$.publisher`, Action: util.ReMarshalMatcher(&pub), Optional: true},
+		{Expr: `$.role`, Action: util.ReMarshalMatcher(&role), Optional: true},
+	}, p.pmd); err != nil {
+		return err
+	}
+
+	domain.Publisher = &pub
+	domain.Role = &role
+
+	return nil
 }
 
 // domainChecks compiles a list of checks which should be performed
@@ -726,8 +756,13 @@ func (p *processor) checkIndex(base string, mask whereType) error {
 		defer res.Body.Close()
 		var files []csaf.AdvisoryFile
 		scanner := bufio.NewScanner(res.Body)
-		for scanner.Scan() {
-			files = append(files, csaf.PlainAdvisoryFile(scanner.Text()))
+		for line := 1; scanner.Scan(); line++ {
+			u := scanner.Text()
+			if _, err := url.Parse(u); err != nil {
+				p.badIntegrities.error("index.txt contains invalid URL %q in line %d", u, line)
+				continue
+			}
+			files = append(files, csaf.PlainAdvisoryFile(u))
 		}
 		return files, scanner.Err()
 	}()
