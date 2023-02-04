@@ -39,12 +39,37 @@ type downloader struct {
 	directory string
 	keys      []*crypto.KeyRing
 	eval      *util.PathEval
+	validator csaf.RemoteValidator
 }
 
-func newDownloader(opts *options) *downloader {
+func newDownloader(opts *options) (*downloader, error) {
+
+	var validator csaf.RemoteValidator
+
+	if opts.RemoteValidator != "" {
+		validatorOptions := csaf.RemoteValidatorOptions{
+			URL:     opts.RemoteValidator,
+			Presets: opts.RemoteValidatorPresets,
+			Cache:   opts.RemoteValidatorCache,
+		}
+		var err error
+		if validator, err = validatorOptions.Open(); err != nil {
+			return nil, fmt.Errorf(
+				"preparing remote validator failed: %w", err)
+		}
+	}
+
 	return &downloader{
-		opts: opts,
-		eval: util.NewPathEval(),
+		opts:      opts,
+		eval:      util.NewPathEval(),
+		validator: validator,
+	}, nil
+}
+
+func (d *downloader) close() {
+	if d.validator != nil {
+		d.validator.Close()
+		d.validator = nil
 	}
 }
 
@@ -237,10 +262,10 @@ func (d *downloader) downloadFiles(label csaf.TLPLabel, files []csaf.AdvisoryFil
 			continue
 		}
 
-		// Ignore not confirming filenames.
+		// Ignore not conforming filenames.
 		filename := filepath.Base(u.Path)
-		if !util.ConfirmingFileName(filename) {
-			log.Printf("Not confirming filename %q. Ignoring.\n", filename)
+		if !util.ConformingFileName(filename) {
+			log.Printf("Not conforming filename %q. Ignoring.\n", filename)
 			continue
 		}
 
@@ -254,6 +279,13 @@ func (d *downloader) downloadFiles(label csaf.TLPLabel, files []csaf.AdvisoryFil
 			log.Printf("WARN: cannot load %s: %s (%d)\n",
 				file.URL(), resp.Status, resp.StatusCode)
 			continue
+		}
+
+		// Warn if we do not get JSON.
+		if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
+			log.Printf(
+				"WARN: The content type of %s should be 'application/json' but is '%s'\n",
+				file.URL(), ct)
 		}
 
 		var (
@@ -334,6 +366,19 @@ func (d *downloader) downloadFiles(label csaf.TLPLabel, files []csaf.AdvisoryFil
 		if errors, err := csaf.ValidateCSAF(doc); err != nil || len(errors) > 0 {
 			d.logValidationIssues(file.URL(), errors, err)
 			continue
+		}
+
+		// Validate against remote validator
+		if d.validator != nil {
+			ok, err := d.validator.Validate(doc)
+			if err != nil {
+				return fmt.Errorf(
+					"calling remote validator on %q failed: %w",
+					file.URL(), err)
+			}
+			if !ok {
+				log.Printf("Remote validation of %q failed\n", file.URL())
+			}
 		}
 
 		if err := d.eval.Extract(`$.document.tracking.initial_release_date`, dateExtract, false, doc); err != nil {

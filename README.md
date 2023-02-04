@@ -18,13 +18,16 @@ is a tool for testing a CSAF Trusted Provider according to [Section 7 of the CSA
 ## [csaf_downloader](docs/csaf_downloader.md)
 is a tool for downloading advisories from a provider.
 
+## [csaf_validator](docs/csaf_validator.md)
+is a tool to validate local advisories files against the JSON Schema and an optional remote validator.
+
 ## Setup
 Note that binaries for the server side are only available and tested
 for GNU/Linux-Systems, e.g. Ubuntu LTS.
 They are likely to run on similar systems when build from sources.
 
 The windows binary package only includes
-`csaf_downloader`, `csaf_checker` and `csaf_uploader`.
+`csaf_downloader`, `csaf_validator`, `csaf_checker` and `csaf_uploader`.
 
 
 ### Prebuild binaries

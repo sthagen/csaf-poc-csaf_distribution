@@ -41,6 +41,7 @@ type topicMessages []Message
 
 type processor struct {
 	opts      *options
+	validator csaf.RemoteValidator
 	client    util.Client
 	ageAccept func(time.Time) bool
 
@@ -52,6 +53,8 @@ type processor struct {
 	pmd            any
 	keys           []*crypto.KeyRing
 
+	invalidAdvisories    topicMessages
+	badFilenames         topicMessages
 	badIntegrities       topicMessages
 	badPGPs              topicMessages
 	badSignatures        topicMessages
@@ -146,12 +149,37 @@ func (m *topicMessages) used() bool { return *m != nil }
 
 // newProcessor returns a processor structure after assigning the given options to the opts attribute
 // and initializing the "alreadyChecked" and "expr" fields.
-func newProcessor(opts *options) *processor {
+func newProcessor(opts *options) (*processor, error) {
+
+	var validator csaf.RemoteValidator
+
+	if opts.RemoteValidator != "" {
+		validatorOptions := csaf.RemoteValidatorOptions{
+			URL:     opts.RemoteValidator,
+			Presets: opts.RemoteValidatorPresets,
+			Cache:   opts.RemoteValidatorCache,
+		}
+		var err error
+		if validator, err = validatorOptions.Open(); err != nil {
+			return nil, fmt.Errorf(
+				"preparing remote validator failed: %w", err)
+		}
+	}
+
 	return &processor{
 		opts:           opts,
 		alreadyChecked: map[string]whereType{},
 		expr:           util.NewPathEval(),
 		ageAccept:      ageAccept(opts),
+		validator:      validator,
+	}, nil
+}
+
+// close closes external ressources of the processor.
+func (p *processor) close() {
+	if p.validator != nil {
+		p.validator.Close()
+		p.validator = nil
 	}
 }
 
@@ -177,6 +205,8 @@ func (p *processor) clean() {
 	p.pmd = nil
 	p.keys = nil
 
+	p.invalidAdvisories.reset()
+	p.badFilenames.reset()
 	p.badIntegrities.reset()
 	p.badPGPs.reset()
 	p.badSignatures.reset()
@@ -415,6 +445,12 @@ func (p *processor) integrity(
 		}
 		p.checkTLS(u)
 
+		// Check if the filename is conforming.
+		p.badFilenames.use()
+		if !util.ConformingFileName(filepath.Base(u)) {
+			p.badFilenames.error("%s does not have a conforming filename.", u)
+		}
+
 		var folderYear *int
 
 		if m := yearFromURL.FindStringSubmatch(u); m != nil {
@@ -441,6 +477,13 @@ func (p *processor) integrity(
 			continue
 		}
 
+		// Warn if we do not get JSON.
+		if ct := res.Header.Get("Content-Type"); ct != "application/json" {
+			lg(WarnType,
+				"The content type of %s should be 'application/json' but is '%s'",
+				u, ct)
+		}
+
 		s256 := sha256.New()
 		s512 := sha512.New()
 		data.Reset()
@@ -457,13 +500,25 @@ func (p *processor) integrity(
 			continue
 		}
 
+		p.invalidAdvisories.use()
+
+		// Validate against JSON schema.
 		errors, err := csaf.ValidateCSAF(doc)
 		if err != nil {
-			lg(ErrorType, "Failed to validate %s: %v", u, err)
+			p.invalidAdvisories.error("Failed to validate %s: %v", u, err)
 			continue
 		}
 		if len(errors) > 0 {
-			lg(ErrorType, "CSAF file %s has %d validation errors.", u, len(errors))
+			p.invalidAdvisories.error("CSAF file %s has %d validation errors.", u, len(errors))
+		}
+
+		// Validate against remote validator.
+		if p.validator != nil {
+			if ok, err := p.validator.Validate(doc); err != nil {
+				p.invalidAdvisories.error("Calling remote validator on %s failed: %v", u, err)
+			} else if !ok {
+				p.invalidAdvisories.error("Remote validation of %s failed.", u)
+			}
 		}
 
 		// Check if file is in the right folder.
@@ -999,14 +1054,14 @@ func (p *processor) checkMissing(string) error {
 }
 
 // checkInvalid goes over all found adivisories URLs and checks
-// if file name confirms to standard.
+// if file name conforms to standard.
 func (p *processor) checkInvalid(string) error {
 
 	p.badDirListings.use()
 	var invalids []string
 
 	for f := range p.alreadyChecked {
-		if !util.ConfirmingFileName(filepath.Base(f)) {
+		if !util.ConformingFileName(filepath.Base(f)) {
 			invalids = append(invalids, f)
 		}
 	}
