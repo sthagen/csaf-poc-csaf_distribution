@@ -118,11 +118,16 @@ func (d *downloader) httpClient() util.Client {
 func (d *downloader) download(ctx context.Context, domain string) error {
 	client := d.httpClient()
 
-	lpmd := csaf.LoadProviderMetadataForDomain(
-		client, domain, func(format string, args ...any) {
-			log.Printf(
-				"Looking for provider-metadata.json of '"+domain+"': "+format+"\n", args...)
-		})
+	loader := csaf.NewProviderMetadataLoader(client)
+
+	lpmd := loader.Load(domain)
+
+	if d.opts.Verbose {
+		for i := range lpmd.Messages {
+			log.Printf("Loading provider-metadata.json for %q: %s\n",
+				domain, lpmd.Messages[i].Message)
+		}
+	}
 
 	if !lpmd.Valid() {
 		return fmt.Errorf("no valid provider-metadata.json found for '%s'", domain)
@@ -436,6 +441,11 @@ nextAdvisory:
 		// Validate against CSAF schema.
 		if errors, err := csaf.ValidateCSAF(doc); err != nil || len(errors) > 0 {
 			d.logValidationIssues(file.URL(), errors, err)
+			continue
+		}
+
+		if err := util.IDMatchesFilename(d.eval, doc, filename); err != nil {
+			log.Printf("Ignoring %s: %s.\n", file.URL(), err)
 			continue
 		}
 
