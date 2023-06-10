@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/csaf-poc/csaf_distribution/csaf"
+	"github.com/csaf-poc/csaf_distribution/v2/csaf"
 )
 
 type (
@@ -270,7 +270,7 @@ func (r *providerMetadataReport) report(p *processor, domain *Domain) {
 func (r *securityReporter) report(p *processor, domain *Domain) {
 	req := r.requirement(domain)
 	if !p.badSecurity.used() {
-		req.message(InfoType, "Performed no in-depth test of security.txt.")
+		req.message(WarnType, "Performed no in-depth test of security.txt.")
 		return
 	}
 	if len(p.badSecurity) == 0 {
@@ -284,7 +284,7 @@ func (r *securityReporter) report(p *processor, domain *Domain) {
 func (r *wellknownMetadataReporter) report(p *processor, domain *Domain) {
 	req := r.requirement(domain)
 	if !p.badWellknownMetadata.used() {
-		req.message(InfoType, "Since no valid provider-metadata.json was found, no extended check was performed.")
+		req.message(WarnType, "Since no valid provider-metadata.json was found, no extended check was performed.")
 		return
 	}
 	if len(p.badWellknownMetadata) == 0 {
@@ -298,7 +298,7 @@ func (r *wellknownMetadataReporter) report(p *processor, domain *Domain) {
 func (r *dnsPathReporter) report(p *processor, domain *Domain) {
 	req := r.requirement(domain)
 	if !p.badDNSPath.used() {
-		req.message(InfoType, "No check about contents from https://csaf.data.security.DOMAIN performed.")
+		req.message(WarnType, "No check about contents from https://csaf.data.security.DOMAIN performed.")
 		return
 	}
 	if len(p.badDNSPath) == 0 {
@@ -364,8 +364,17 @@ func (r *directoryListingsReporter) report(p *processor, domain *Domain) {
 // given TLP level and whether any of the TLP levels
 // TLP:WHITE, TLP:GREEN or unlabeled exists and sets the "message" field value
 // of the "Requirement" struct as a result of that.
-func (r *rolieFeedReporter) report(_ *processor, _ *Domain) {
-	// TODO
+func (r *rolieFeedReporter) report(p *processor, domain *Domain) {
+	req := r.requirement(domain)
+	if !p.badROLIEfeed.used() {
+		req.message(InfoType, "No checks on the validity of ROLIE feeds performed.")
+		return
+	}
+	if len(p.badROLIEfeed) == 0 {
+		req.message(InfoType, "All checked ROLIE feeds validated fine.")
+		return
+	}
+	req.Messages = p.badROLIEfeed
 }
 
 // report tests whether a ROLIE service document is used and if so,
