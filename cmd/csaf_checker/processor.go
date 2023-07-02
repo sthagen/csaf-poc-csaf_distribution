@@ -54,20 +54,24 @@ type processor struct {
 	keys           *crypto.KeyRing
 	labelChecker   *rolieLabelChecker
 
-	invalidAdvisories    topicMessages
-	badFilenames         topicMessages
-	badIntegrities       topicMessages
-	badPGPs              topicMessages
-	badSignatures        topicMessages
-	badProviderMetadata  topicMessages
-	badSecurity          topicMessages
-	badIndices           topicMessages
-	badChanges           topicMessages
-	badFolders           topicMessages
-	badWellknownMetadata topicMessages
-	badDNSPath           topicMessages
-	badDirListings       topicMessages
-	badROLIEfeed         topicMessages
+	invalidAdvisories      topicMessages
+	badFilenames           topicMessages
+	badIntegrities         topicMessages
+	badPGPs                topicMessages
+	badSignatures          topicMessages
+	badProviderMetadata    topicMessages
+	badSecurity            topicMessages
+	badIndices             topicMessages
+	badChanges             topicMessages
+	badFolders             topicMessages
+	badWellknownMetadata   topicMessages
+	badDNSPath             topicMessages
+	badDirListings         topicMessages
+	badROLIEFeed           topicMessages
+	badROLIEService        topicMessages
+	badROLIECategory       topicMessages
+	badWhitePermissions    topicMessages
+	badAmberRedPermissions topicMessages
 
 	expr *util.PathEval
 }
@@ -82,8 +86,6 @@ type reporter interface {
 var (
 	// errContinue indicates that the current check should continue.
 	errContinue = errors.New("continue")
-	// errStop indicates that the current check should stop.
-	errStop = errors.New("stop")
 )
 
 type whereType byte
@@ -148,6 +150,19 @@ func (m *topicMessages) reset() { *m = nil }
 
 // used returns true if we have used this topic.
 func (m *topicMessages) used() bool { return *m != nil }
+
+// hasErrors checks if there are any error messages.
+func (m *topicMessages) hasErrors() bool {
+	if !m.used() {
+		return false
+	}
+	for _, msg := range *m {
+		if msg.Type == ErrorType {
+			return true
+		}
+	}
+	return false
+}
 
 // newProcessor returns a processor structure after assigning the given options to the opts attribute
 // and initializing the "alreadyChecked" and "expr" fields.
@@ -220,7 +235,11 @@ func (p *processor) clean() {
 	p.badWellknownMetadata.reset()
 	p.badDNSPath.reset()
 	p.badDirListings.reset()
-	p.badROLIEfeed.reset()
+	p.badROLIEFeed.reset()
+	p.badROLIEService.reset()
+	p.badROLIECategory.reset()
+	p.badWhitePermissions.reset()
+	p.badAmberRedPermissions.reset()
 	p.labelChecker = nil
 }
 
@@ -241,10 +260,9 @@ func (p *processor) run(domains []string) (*Report, error) {
 			continue
 		}
 		if err := p.checkDomain(d); err != nil {
-			if err == errContinue || err == errStop {
-				continue
-			}
-			return nil, err
+			log.Printf("Failed to find valid provider-metadata.json for domain %s: %v. "+
+				"Continuing with next domain.", d, err)
+			continue
 		}
 		domain := &Domain{Name: d}
 
@@ -254,9 +272,26 @@ func (p *processor) run(domains []string) (*Report, error) {
 			continue
 		}
 
-		for _, r := range buildReporters(*domain.Role) {
+		if domain.Role == nil {
+			log.Printf("No role found in meta data. Ignoring domain %q\n", d)
+			continue
+		}
+
+		rules := roleRequirements(*domain.Role)
+		// TODO: store error base on rules eval in report.
+		if rules == nil {
+			log.Printf(
+				"WARN: Cannot find requirement rules for role %q. Assuming trusted provider.\n",
+				*domain.Role)
+			rules = trustedProviderRules
+		}
+
+		// 18, 19, 20 should always be checked.
+		for _, r := range rules.reporters([]int{18, 19, 20}) {
 			r.report(p, domain)
 		}
+
+		domain.Passed = rules.eval(p)
 
 		report.Domains = append(report.Domains, domain)
 		p.clean()
@@ -316,17 +351,17 @@ func (p *processor) domainChecks(domain string) []func(*processor, string) error
 	return checks
 }
 
+// checkDomain runs a set of domain specific checks on a given
+// domain.
 func (p *processor) checkDomain(domain string) error {
-
 	for _, check := range p.domainChecks(domain) {
-		if err := check(p, domain); err != nil && err != errContinue {
-			if err == errStop {
-				return nil
+		if err := check(p, domain); err != nil {
+			if err == errContinue {
+				continue
 			}
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -369,12 +404,8 @@ func (p *processor) checkRedirect(r *http.Request, via []*http.Request) error {
 	return nil
 }
 
-func (p *processor) httpClient() util.Client {
-
-	if p.client != nil {
-		return p.client
-	}
-
+// fullClient returns a fully configure HTTP client.
+func (p *processor) fullClient() util.Client {
 	hClient := http.Client{}
 
 	hClient.CheckRedirect = p.checkRedirect
@@ -414,8 +445,29 @@ func (p *processor) httpClient() util.Client {
 			Limiter: rate.NewLimiter(rate.Limit(*p.opts.Rate), 1),
 		}
 	}
+	return client
+}
 
-	p.client = client
+// basicClient returns a http Client w/o certs and headers.
+func (p *processor) basicClient() *http.Client {
+	if p.opts.Insecure {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		return &http.Client{Transport: tr}
+	}
+	return &http.Client{}
+}
+
+// httpClient returns a cached HTTP client to be used to
+// download remote ressources.
+func (p *processor) httpClient() util.Client {
+
+	if p.client != nil {
+		return p.client
+	}
+
+	p.client = p.fullClient()
 	return p.client
 }
 
@@ -448,11 +500,14 @@ func (p *processor) rolieFeedEntries(feed string) ([]csaf.AdvisoryFile, error) {
 		var rolieDoc any
 		err = json.NewDecoder(bytes.NewReader(all)).Decode(&rolieDoc)
 		return rfeed, rolieDoc, err
-
 	}()
 	if err != nil {
 		p.badProviderMetadata.error("Loading ROLIE feed failed: %v.", err)
 		return nil, errContinue
+	}
+
+	if rfeed.CountEntries() == 0 {
+		p.badROLIEFeed.warn("No entries in %s", feed)
 	}
 	errors, err := csaf.ValidateROLIE(rolieDoc)
 	if err != nil {
@@ -640,7 +695,7 @@ func (p *processor) integrity(
 		}
 
 		if err := util.IDMatchesFilename(p.expr, doc, filepath.Base(u)); err != nil {
-			p.invalidAdvisories.error("%s: %v\n", u, err)
+			p.badFilenames.error("%s: %v", u, err)
 			continue
 
 		}
@@ -655,11 +710,21 @@ func (p *processor) integrity(
 
 		// Extract the tlp level of the entry
 		if tlpa, err := p.expr.Eval(
-			`$.document.distribution`, doc); err != nil {
-			p.badROLIEfeed.error(
+			`$.document`, doc); err != nil {
+			p.badROLIEFeed.error(
 				"Extracting 'tlp level' from %s failed: %v", u, err)
 		} else {
 			tlpe := extractTLP(tlpa)
+			// If the client has no authorization it shouldn't be able
+			// to access TLP:AMBER or TLP:RED advisories
+			if !p.opts.protectedAccess() &&
+				(tlpe == csaf.TLPLabelAmber || tlpe == csaf.TLPLabelRed) {
+
+				p.badAmberRedPermissions.use()
+				p.badAmberRedPermissions.error(
+					"Advisory %s of TLP level %v is not access protected.",
+					u, tlpe)
+			}
 			// check if current feed has correct or all of their tlp levels entries.
 			if p.labelChecker != nil {
 				p.labelChecker.check(p, tlpe, u)
@@ -781,11 +846,15 @@ func (p *processor) integrity(
 // extractTLP tries to extract a valid TLP label from an advisory
 // Returns "UNLABELED" if it does not exist, the label otherwise
 func extractTLP(tlpa any) csaf.TLPLabel {
-	if distribution, ok := tlpa.(map[string]any); ok {
-		if tlp, ok := distribution["tlp"]; ok {
-			if label, ok := tlp.(map[string]any); ok {
-				if labelstring, ok := label["label"].(string); ok {
-					return csaf.TLPLabel(labelstring)
+	if document, ok := tlpa.(map[string]any); ok {
+		if distri, ok := document["distribution"]; ok {
+			if distribution, ok := distri.(map[string]any); ok {
+				if tlp, ok := distribution["tlp"]; ok {
+					if label, ok := tlp.(map[string]any); ok {
+						if labelstring, ok := label["label"].(string); ok {
+							return csaf.TLPLabel(labelstring)
+						}
+					}
 				}
 			}
 		}
@@ -979,6 +1048,8 @@ func (p *processor) checkCSAFs(_ string) error {
 				return err
 			}
 		}
+		// check for service category document
+		p.serviceCheck(feeds)
 	}
 
 	// No rolie feeds -> try directory_urls.
@@ -1137,8 +1208,6 @@ func (p *processor) checkProviderMetadata(domain string) bool {
 	}
 
 	if !lpmd.Valid() {
-		p.badProviderMetadata.error("No valid provider-metadata.json found.")
-		p.badProviderMetadata.error("STOPPING here - cannot perform other checks.")
 		return false
 	}
 
