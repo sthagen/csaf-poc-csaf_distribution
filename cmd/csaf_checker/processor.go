@@ -40,13 +40,14 @@ import (
 type topicMessages []Message
 
 type processor struct {
-	opts      *options
-	validator csaf.RemoteValidator
-	client    util.Client
-	ageAccept func(time.Time) bool
+	opts         *options
+	validator    csaf.RemoteValidator
+	client       util.Client
+	unauthClient util.Client
+	ageAccept    func(time.Time) bool
 
 	redirects      map[string][]string
-	noneTLS        map[string]struct{}
+	noneTLS        util.Set[string]
 	alreadyChecked map[string]whereType
 	pmdURL         string
 	pmd256         []byte
@@ -369,10 +370,10 @@ func (p *processor) checkDomain(domain string) error {
 // the value of "noneTLS" field if it is not HTTPS.
 func (p *processor) checkTLS(u string) {
 	if p.noneTLS == nil {
-		p.noneTLS = map[string]struct{}{}
+		p.noneTLS = util.Set[string]{}
 	}
 	if x, err := url.Parse(u); err == nil && x.Scheme != "https" {
-		p.noneTLS[u] = struct{}{}
+		p.noneTLS.Add(u)
 	}
 }
 
@@ -462,13 +463,25 @@ func (p *processor) basicClient() *http.Client {
 // httpClient returns a cached HTTP client to be used to
 // download remote ressources.
 func (p *processor) httpClient() util.Client {
-
-	if p.client != nil {
-		return p.client
+	if p.client == nil {
+		p.client = p.fullClient()
 	}
-
-	p.client = p.fullClient()
 	return p.client
+}
+
+// unauthorizedClient returns a cached HTTP client without
+// authentification.
+func (p *processor) unauthorizedClient() util.Client {
+	if p.unauthClient == nil {
+		p.unauthClient = p.basicClient()
+	}
+	return p.unauthClient
+}
+
+// usedAuthorizedClient tells if an authorized client is used
+// for downloading.
+func (p *processor) usedAuthorizedClient() bool {
+	return p.opts.protectedAccess()
 }
 
 // rolieFeedEntries loads the references to the advisory files for a given feed.
@@ -1163,7 +1176,7 @@ func (p *processor) checkListing(string) error {
 
 	var unlisted []string
 
-	badDirs := map[string]struct{}{}
+	badDirs := util.Set[string]{}
 
 	if len(p.alreadyChecked) == 0 {
 		p.badDirListings.info("No directory listings found.")
