@@ -40,11 +40,10 @@ import (
 type topicMessages []Message
 
 type processor struct {
-	opts         *options
+	cfg          *config
 	validator    csaf.RemoteValidator
 	client       util.Client
 	unauthClient util.Client
-	ageAccept    func(time.Time) bool
 
 	redirects      map[string][]string
 	noneTLS        util.Set[string]
@@ -165,17 +164,16 @@ func (m *topicMessages) hasErrors() bool {
 	return false
 }
 
-// newProcessor returns a processor structure after assigning the given options to the opts attribute
-// and initializing the "alreadyChecked" and "expr" fields.
-func newProcessor(opts *options) (*processor, error) {
+// newProcessor returns an initilaized processor.
+func newProcessor(cfg *config) (*processor, error) {
 
 	var validator csaf.RemoteValidator
 
-	if opts.RemoteValidator != "" {
+	if cfg.RemoteValidator != "" {
 		validatorOptions := csaf.RemoteValidatorOptions{
-			URL:     opts.RemoteValidator,
-			Presets: opts.RemoteValidatorPresets,
-			Cache:   opts.RemoteValidatorCache,
+			URL:     cfg.RemoteValidator,
+			Presets: cfg.RemoteValidatorPresets,
+			Cache:   cfg.RemoteValidatorCache,
 		}
 		var err error
 		if validator, err = validatorOptions.Open(); err != nil {
@@ -185,10 +183,9 @@ func newProcessor(opts *options) (*processor, error) {
 	}
 
 	return &processor{
-		opts:           opts,
+		cfg:            cfg,
 		alreadyChecked: map[string]whereType{},
 		expr:           util.NewPathEval(),
-		ageAccept:      ageAccept(opts),
 		validator:      validator,
 		labelChecker: labelChecker{
 			advisories:      map[csaf.TLPLabel]util.Set[string]{},
@@ -202,16 +199,6 @@ func (p *processor) close() {
 	if p.validator != nil {
 		p.validator.Close()
 		p.validator = nil
-	}
-}
-
-func ageAccept(opts *options) func(time.Time) bool {
-	if opts.Years == nil {
-		return nil
-	}
-	good := time.Now().AddDate(-int(*opts.Years), 0, 0)
-	return func(t time.Time) bool {
-		return !t.Before(good)
 	}
 }
 
@@ -431,12 +418,12 @@ func (p *processor) fullClient() util.Client {
 	hClient.CheckRedirect = p.checkRedirect
 
 	var tlsConfig tls.Config
-	if p.opts.Insecure {
+	if p.cfg.Insecure {
 		tlsConfig.InsecureSkipVerify = true
 	}
 
-	if len(p.opts.clientCerts) != 0 {
-		tlsConfig.Certificates = p.opts.clientCerts
+	if len(p.cfg.clientCerts) != 0 {
+		tlsConfig.Certificates = p.cfg.clientCerts
 	}
 
 	hClient.Transport = &http.Transport{
@@ -446,23 +433,23 @@ func (p *processor) fullClient() util.Client {
 	client := util.Client(&hClient)
 
 	// Add extra headers.
-	if len(p.opts.ExtraHeader) > 0 {
+	if len(p.cfg.ExtraHeader) > 0 {
 		client = &util.HeaderClient{
 			Client: client,
-			Header: p.opts.ExtraHeader,
+			Header: p.cfg.ExtraHeader,
 		}
 	}
 
 	// Add optional URL logging.
-	if p.opts.Verbose {
+	if p.cfg.Verbose {
 		client = &util.LoggingClient{Client: client}
 	}
 
 	// Add optional rate limiting.
-	if p.opts.Rate != nil {
+	if p.cfg.Rate != nil {
 		client = &util.LimitingClient{
 			Client:  client,
-			Limiter: rate.NewLimiter(rate.Limit(*p.opts.Rate), 1),
+			Limiter: rate.NewLimiter(rate.Limit(*p.cfg.Rate), 1),
 		}
 	}
 	return client
@@ -470,7 +457,7 @@ func (p *processor) fullClient() util.Client {
 
 // basicClient returns a http Client w/o certs and headers.
 func (p *processor) basicClient() *http.Client {
-	if p.opts.Insecure {
+	if p.cfg.Insecure {
 		tr := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
@@ -500,7 +487,7 @@ func (p *processor) unauthorizedClient() util.Client {
 // usedAuthorizedClient tells if an authorized client is used
 // for downloading.
 func (p *processor) usedAuthorizedClient() bool {
-	return p.opts.protectedAccess()
+	return p.cfg.protectedAccess()
 }
 
 // rolieFeedEntries loads the references to the advisory files for a given feed.
@@ -558,8 +545,8 @@ func (p *processor) rolieFeedEntries(feed string) ([]csaf.AdvisoryFile, error) {
 	rfeed.Entries(func(entry *csaf.Entry) {
 
 		// Filter if we have date checking.
-		if p.ageAccept != nil {
-			if pub := time.Time(entry.Published); !pub.IsZero() && !p.ageAccept(pub) {
+		if p.cfg.ageAccept != nil {
+			if pub := time.Time(entry.Published); !pub.IsZero() && !p.cfg.ageAccept(pub) {
 				return
 			}
 		}
@@ -670,7 +657,7 @@ func (p *processor) integrity(
 		if m := yearFromURL.FindStringSubmatch(u); m != nil {
 			year, _ := strconv.Atoi(m[1])
 			// Check if we are in checking time interval.
-			if p.ageAccept != nil && !p.ageAccept(
+			if p.cfg.ageAccept != nil && !p.cfg.ageAccept(
 				time.Date(
 					year, 12, 31, // Assume last day of year.
 					23, 59, 59, 0, // 23:59:59
@@ -976,7 +963,7 @@ func (p *processor) checkChanges(base string, mask whereType) error {
 				return nil, nil, err
 			}
 			// Apply date range filtering.
-			if p.ageAccept != nil && !p.ageAccept(t) {
+			if p.cfg.ageAccept != nil && !p.cfg.ageAccept(t) {
 				continue
 			}
 			path := r[pathColumn]
@@ -993,7 +980,7 @@ func (p *processor) checkChanges(base string, mask whereType) error {
 
 	if len(files) == 0 {
 		var filtered string
-		if p.ageAccept != nil {
+		if p.cfg.ageAccept != nil {
 			filtered = " (maybe filtered out by time interval)"
 		}
 		p.badChanges.warn("no entries in changes.csv found" + filtered)
