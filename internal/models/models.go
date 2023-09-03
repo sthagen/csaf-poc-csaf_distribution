@@ -10,6 +10,7 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -30,7 +31,7 @@ func NewTimeInterval(a, b time.Time) TimeRange {
 // guessDate tries to guess an RFC 3339 date time from a given string.
 func guessDate(s string) (time.Time, bool) {
 	for _, layout := range []string{
-		"2006-01-02T15:04:05Z07:00",
+		time.RFC3339,
 		"2006-01-02T15:04:05",
 		"2006-01-02T15:04",
 		"2006-01-02T15",
@@ -48,6 +49,15 @@ func guessDate(s string) (time.Time, bool) {
 // UnmarshalText implements [encoding/text.TextUnmarshaler].
 func (tr *TimeRange) UnmarshalText(text []byte) error {
 	return tr.UnmarshalFlag(string(text))
+}
+
+// MarshalJSON implements [encoding/json.Marshaler].
+func (tr TimeRange) MarshalJSON() ([]byte, error) {
+	s := []string{
+		tr[0].Format(time.RFC3339),
+		tr[1].Format(time.RFC3339),
+	}
+	return json.Marshal(s)
 }
 
 // UnmarshalFlag implements [go-flags/Unmarshaler].

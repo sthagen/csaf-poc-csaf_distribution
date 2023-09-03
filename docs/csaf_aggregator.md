@@ -6,14 +6,23 @@
   csaf_aggregator [OPTIONS]
 
 Application Options:
-  -c, --config=CFG-FILE    File name of the configuration file (default:
-                           aggregator.toml)
-      --version            Display version of the binary
-  -i, --interim            Perform an interim scan
+  -t, --timerange=RANGE     RANGE of time from which advisories to download
+  -i, --interim             Perform an interim scan
+      --version             Display version of the binary
+  -c, --config=TOML-FILE    Path to config TOML file
 
 Help Options:
-  -h, --help               Show this help message
+  -h, --help                Show this help message
 ```
+
+If no config file is explictly given the follwing places are searched for a config file:
+```
+~/.config/csaf/aggregator.toml
+~/.csaf_aggregator.toml
+csaf_aggregator.toml
+```
+
+with `~` expanding to `$HOME` on unixoid systems and `%HOMEPATH` on Windows systems.
 
 Usage example for a single run, to test if the config is good:
 ```bash
@@ -95,6 +104,12 @@ lock_file               // path to lockfile, to stop other instances if one is n
 interim_years           // limiting the years for which interim documents are searched (default 0)
 verbose                 // print more diagnostic output, e.g. https requests (default false)
 allow_single_provider   // debugging option (default false)
+ignorepattern           // patterns of advisory URLs to be ignored (see checker doc for details)
+client_cert             // path to client certificate to access access-protected advisories
+client_key              // path to client key to access access-protected advisories
+client_passphrase       // optional client cert passphrase (limited, experimental, see downloader doc)
+header                  // adds extra HTTP header fields to the client
+timerange               // Accepted time range of advisories to handle. See checker doc for details.
 ```
 
 Next we have two TOML _tables_:
@@ -124,6 +139,11 @@ category
 update_interval
 create_service_document
 categories
+ignorepattern
+client_cert
+client_key
+client_passphrase
+header
 ```
 
 Where valid `name` and `domain` settings are required.
@@ -195,6 +215,10 @@ insecure = true
 #  rate = 1.2
 #  insecure = true
   write_indices = true
+  client_cert = "./../devca1/testclient1.crt"
+  client_key = "./../devca1/testclient1-key.pem"
+#  client_passphrase =
+# header =
 
 [[providers]]
   name = "local-dev-provider3"
@@ -205,6 +229,7 @@ insecure = true
   # If aggregator.category == "aggregator", set for an entry that should
   # be listed in addition:
   category = "lister"
+#  ignorepattern = [".*white.*", ".*red.*"]
 ```
 <!-- MARKDOWN-AUTO-DOCS:END -->
 

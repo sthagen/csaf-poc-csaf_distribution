@@ -18,15 +18,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/csaf-poc/csaf_distribution/v2/csaf"
+	"github.com/csaf-poc/csaf_distribution/v2/internal/certs"
+	"github.com/csaf-poc/csaf_distribution/v2/internal/filter"
+	"github.com/csaf-poc/csaf_distribution/v2/internal/models"
+	"github.com/csaf-poc/csaf_distribution/v2/internal/options"
 	"github.com/csaf-poc/csaf_distribution/v2/util"
 	"golang.org/x/time/rate"
 )
 
 const (
-	defaultConfigPath     = "aggregator.toml"
 	defaultWorkers        = 10
 	defaultFolder         = "/var/www"
 	defaultWeb            = "/var/www/html"
@@ -49,6 +51,21 @@ type provider struct {
 
 	// UpdateInterval is as the mandatory `update_interval` if this is a publisher.
 	UpdateInterval *string `toml:"update_interval"`
+
+	// IgnorePattern is a list of patterns of advisory URLs to be ignored.
+	IgnorePattern []string `toml:"ignorepattern"`
+
+	// ExtraHeader adds extra HTTP header fields to client
+	ExtraHeader http.Header `toml:"header"`
+
+	ClientCert       *string `toml:"client_cert"`
+	ClientKey        *string `toml:"client_key"`
+	ClientPassphrase *string `toml:"client_passphrase"`
+
+	Range *models.TimeRange `toml:"timerange"`
+
+	clientCerts   []tls.Certificate
+	ignorePattern filter.PatternMatcher
 }
 
 type config struct {
@@ -70,11 +87,18 @@ type config struct {
 	Passphrase          *string             `toml:"passphrase"`
 	AllowSingleProvider bool                `toml:"allow_single_provider"`
 
+	ClientCert       *string `toml:"client_cert"`
+	ClientKey        *string `toml:"client_key"`
+	ClientPassphrase *string `toml:"client_passphrase"`
+
+	Range *models.TimeRange `long:"timerange" short:"t" description:"RANGE of time from which advisories to download" value-name:"RANGE" toml:"timerange"`
+
 	// LockFile tries to lock to a given file.
 	LockFile *string `toml:"lock_file"`
 
 	// Interim performs an interim scan.
-	Interim bool `toml:"interim"`
+	Interim bool `short:"i" long:"interim" description:"Perform an interim scan" toml:"interim"`
+	Version bool `long:"version" description:"Display version of the binary" toml:"-"`
 
 	// InterimYears is numbers numbers of years to look back
 	// for interim advisories. Less/equal zero means forever.
@@ -90,9 +114,42 @@ type config struct {
 	// 'update_interval'.
 	UpdateInterval *string `toml:"update_interval"`
 
+	// IgnorePattern is a list of patterns of advisory URLs to be ignored.
+	IgnorePattern []string `toml:"ignorepattern"`
+
+	// ExtraHeader adds extra HTTP header fields to client
+	ExtraHeader http.Header `toml:"header"`
+
+	Config string `short:"c" long:"config" description:"Path to config TOML file" value-name:"TOML-FILE" toml:"-"`
+
 	keyMu  sync.Mutex
 	key    *crypto.Key
 	keyErr error
+
+	clientCerts   []tls.Certificate
+	ignorePattern filter.PatternMatcher
+}
+
+// configPaths are the potential file locations of the config file.
+var configPaths = []string{
+	"~/.config/csaf/aggregator.toml",
+	"~/.csaf_aggregator.toml",
+	"csaf_aggregator.toml",
+}
+
+// parseArgsConfig parse the command arguments and loads configuration
+// from a configuration file.
+func parseArgsConfig() ([]string, *config, error) {
+	p := options.Parser[config]{
+		DefaultConfigLocations: configPaths,
+		ConfigLocation: func(cfg *config) string {
+			return cfg.Config
+		},
+		HasVersion: func(cfg *config) bool { return cfg.Version },
+		// Establish default values if not set.
+		EnsureDefaults: (*config).setDefaults,
+	}
+	return p.Parse()
 }
 
 // tooOldForInterims returns a function that tells if a given
@@ -103,6 +160,25 @@ func (c *config) tooOldForInterims() func(time.Time) bool {
 	}
 	from := time.Now().AddDate(-c.InterimYears, 0, 0)
 	return func(t time.Time) bool { return t.Before(from) }
+}
+
+// ageAccept returns a function which checks if a given time
+// is in the accepted download interval of the provider or
+// the global config.
+func (p *provider) ageAccept(c *config) func(time.Time) bool {
+	switch {
+	case p.Range != nil:
+		return p.Range.Contains
+	case c.Range != nil:
+		return c.Range.Contains
+	default:
+		return nil
+	}
+}
+
+// ignoreFile returns true if the given URL should not be downloaded.
+func (p *provider) ignoreURL(u string, c *config) bool {
+	return p.ignorePattern.Matches(u) || c.ignorePattern.Matches(u)
 }
 
 // updateInterval returns the update interval of a publisher.
@@ -180,20 +256,44 @@ func (c *config) privateOpenPGPKey() (*crypto.Key, error) {
 func (c *config) httpClient(p *provider) util.Client {
 
 	hClient := http.Client{}
+
+	var tlsConfig tls.Config
 	if p.Insecure != nil && *p.Insecure || c.Insecure != nil && *c.Insecure {
-		hClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+		tlsConfig.InsecureSkipVerify = true
+	}
+
+	// Use client certs if needed.
+	switch {
+	// Provider has precedence over global.
+	case len(p.clientCerts) != 0:
+		tlsConfig.Certificates = p.clientCerts
+	case len(c.clientCerts) != 0:
+		tlsConfig.Certificates = c.clientCerts
+	}
+
+	hClient.Transport = &http.Transport{
+		TLSClientConfig: &tlsConfig,
+	}
+
+	client := util.Client(&hClient)
+
+	// Add extra headers.
+	switch {
+	// Provider has precedence over global.
+	case len(p.ExtraHeader) > 0:
+		client = &util.HeaderClient{
+			Client: client,
+			Header: p.ExtraHeader,
+		}
+	case len(c.ExtraHeader) > 0:
+		client = &util.HeaderClient{
+			Client: client,
+			Header: c.ExtraHeader,
 		}
 	}
 
-	var client util.Client
-
 	if c.Verbose {
-		client = &util.LoggingClient{Client: &hClient}
-	} else {
-		client = &hClient
+		client = &util.LoggingClient{Client: client}
 	}
 
 	if p.Rate == nil && c.Rate == nil {
@@ -284,42 +384,80 @@ func (c *config) setDefaults() {
 	}
 }
 
-func (c *config) check() error {
+// compileIgnorePatterns compiles the configured patterns to be ignored.
+func (p *provider) compileIgnorePatterns() error {
+	pm, err := filter.NewPatternMatcher(p.IgnorePattern)
+	if err != nil {
+		return fmt.Errorf("invalid ignore patterns for %q: %w", p.Name, err)
+	}
+	p.ignorePattern = pm
+	return nil
+}
+
+// compileIgnorePatterns compiles the configured patterns to be ignored.
+func (c *config) compileIgnorePatterns() error {
+	// Compile the top level patterns.
+	pm, err := filter.NewPatternMatcher(c.IgnorePattern)
+	if err != nil {
+		return err
+	}
+	c.ignorePattern = pm
+	// Compile the patterns of the providers.
+	for _, p := range c.Providers {
+		if err := p.compileIgnorePatterns(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// prepareCertificates loads the provider specific client side certificates
+// used by the HTTP client.
+func (p *provider) prepareCertificates() error {
+	cert, err := certs.LoadCertificate(
+		p.ClientCert, p.ClientKey, p.ClientPassphrase)
+	if err != nil {
+		return fmt.Errorf("invalid certificates for %q: %w", p.Name, err)
+	}
+	p.clientCerts = cert
+	return nil
+}
+
+// prepareCertificates loads the client side certificates used by the HTTP client.
+func (c *config) prepareCertificates() error {
+	// Global certificates
+	cert, err := certs.LoadCertificate(
+		c.ClientCert, c.ClientKey, c.ClientPassphrase)
+	if err != nil {
+		return err
+	}
+	c.clientCerts = cert
+	// Provider certificates
+	for _, p := range c.Providers {
+		if err := p.prepareCertificates(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// prepare prepares internal state of a loaded configuration.
+func (c *config) prepare() error {
+
 	if len(c.Providers) == 0 {
 		return errors.New("no providers given in configuration")
 	}
 
-	if err := c.Aggregator.Validate(); err != nil {
-		return err
+	for _, prepare := range []func() error{
+		c.prepareCertificates,
+		c.compileIgnorePatterns,
+		c.Aggregator.Validate,
+		c.checkProviders,
+		c.checkMirror,
+	} {
+		if err := prepare(); err != nil {
+			return err
+		}
 	}
-
-	if err := c.checkProviders(); err != nil {
-		return err
-	}
-
-	return c.checkMirror()
-}
-
-func loadConfig(path string) (*config, error) {
-	if path == "" {
-		path = defaultConfigPath
-	}
-
-	var cfg config
-	md, err := toml.DecodeFile(path, &cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	if undecoded := md.Undecoded(); len(undecoded) != 0 {
-		return nil, fmt.Errorf("could not parse %q from config.toml", undecoded)
-	}
-
-	cfg.setDefaults()
-
-	if err := cfg.check(); err != nil {
-		return nil, err
-	}
-
-	return &cfg, nil
+	return nil
 }

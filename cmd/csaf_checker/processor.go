@@ -241,8 +241,9 @@ func (p *processor) clean() {
 func (p *processor) run(domains []string) (*Report, error) {
 
 	report := Report{
-		Date:    ReportTime{Time: time.Now().UTC()},
-		Version: util.SemVersion,
+		Date:      ReportTime{Time: time.Now().UTC()},
+		Version:   util.SemVersion,
+		TimeRange: p.cfg.Range,
 	}
 
 	for _, d := range domains {
@@ -545,8 +546,8 @@ func (p *processor) rolieFeedEntries(feed string) ([]csaf.AdvisoryFile, error) {
 	rfeed.Entries(func(entry *csaf.Entry) {
 
 		// Filter if we have date checking.
-		if p.cfg.ageAccept != nil {
-			if pub := time.Time(entry.Published); !pub.IsZero() && !p.cfg.ageAccept(pub) {
+		if accept := p.cfg.Range; accept != nil {
+			if pub := time.Time(entry.Published); !pub.IsZero() && !accept.Contains(pub) {
 				return
 			}
 		}
@@ -642,6 +643,15 @@ func (p *processor) integrity(
 		fp = makeAbs(fp)
 
 		u := b.ResolveReference(fp).String()
+
+		// Should this URL be ignored?
+		if p.cfg.ignoreURL(u) {
+			if p.cfg.Verbose {
+				log.Printf("Ignoring %q\n", u)
+			}
+			continue
+		}
+
 		if p.markChecked(u, mask) {
 			continue
 		}
@@ -657,7 +667,7 @@ func (p *processor) integrity(
 		if m := yearFromURL.FindStringSubmatch(u); m != nil {
 			year, _ := strconv.Atoi(m[1])
 			// Check if we are in checking time interval.
-			if p.cfg.ageAccept != nil && !p.cfg.ageAccept(
+			if accept := p.cfg.Range; accept != nil && !accept.Contains(
 				time.Date(
 					year, 12, 31, // Assume last day of year.
 					23, 59, 59, 0, // 23:59:59
@@ -869,7 +879,7 @@ func (p *processor) checkIndex(base string, mask whereType) error {
 			p.badIndices.error("Fetching %s failed. Status code %d (%s)",
 				index, res.StatusCode, res.Status)
 		} else {
-			p.badIndices.warn("Fetching index.txt failed: %v not found.", index)
+			p.badIndices.error("Fetching index.txt failed: %v not found.", index)
 		}
 		return errContinue
 	}
@@ -932,7 +942,7 @@ func (p *processor) checkChanges(base string, mask whereType) error {
 			p.badChanges.error("Fetching %s failed. Status code %d (%s)",
 				changes, res.StatusCode, res.Status)
 		} else {
-			p.badChanges.warn("Fetching changes.csv failed: %v not found.", changes)
+			p.badChanges.error("Fetching changes.csv failed: %v not found.", changes)
 		}
 		return errContinue
 	}
@@ -963,7 +973,7 @@ func (p *processor) checkChanges(base string, mask whereType) error {
 				return nil, nil, err
 			}
 			// Apply date range filtering.
-			if p.cfg.ageAccept != nil && !p.cfg.ageAccept(t) {
+			if accept := p.cfg.Range; accept != nil && !accept.Contains(t) {
 				continue
 			}
 			path := r[pathColumn]
@@ -980,7 +990,7 @@ func (p *processor) checkChanges(base string, mask whereType) error {
 
 	if len(files) == 0 {
 		var filtered string
-		if p.cfg.ageAccept != nil {
+		if p.cfg.Range != nil {
 			filtered = " (maybe filtered out by time interval)"
 		}
 		p.badChanges.warn("no entries in changes.csv found" + filtered)
@@ -1029,6 +1039,13 @@ func (p *processor) checkCSAFs(_ string) error {
 		}
 		// check for service category document
 		p.serviceCheck(feeds)
+	} else {
+		p.badROLIEFeed.use()
+		p.badROLIEFeed.error("ROLIE feed based distribution was not used.")
+		p.badROLIECategory.use()
+		p.badROLIECategory.warn("No ROLIE category document found.")
+		p.badROLIEService.use()
+		p.badROLIEService.warn("No ROLIE service document found.")
 	}
 
 	// No rolie feeds -> try directory_urls.
@@ -1073,6 +1090,10 @@ func (p *processor) checkCSAFs(_ string) error {
 		}
 	}
 
+	if !p.badFolders.used() {
+		p.badFolders.use()
+		p.badFolders.error("No checks performed on whether files are within the right folders.")
+	}
 	return nil
 }
 
@@ -1206,8 +1227,9 @@ func (p *processor) checkProviderMetadata(domain string) bool {
 	lpmd := loader.Load(domain)
 
 	for i := range lpmd.Messages {
-		// TODO: Filter depending on the role.
-		p.badProviderMetadata.error(lpmd.Messages[i].Message)
+		p.badProviderMetadata.warn(
+			"Unexpected situation while loading provider-metadata.json: " +
+				lpmd.Messages[i].Message)
 	}
 
 	if !lpmd.Valid() {

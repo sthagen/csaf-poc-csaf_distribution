@@ -11,7 +11,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 
@@ -30,6 +30,16 @@ func run(cfg *config, domains []string) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
 
+	if cfg.ForwardURL != "" {
+		f := newForwarder(cfg)
+		go f.run()
+		defer func() {
+			f.log()
+			f.close()
+		}()
+		d.forwarder = f
+	}
+
 	return d.run(ctx, domains)
 }
 
@@ -40,7 +50,7 @@ func main() {
 	options.ErrorCheck(cfg.prepare())
 
 	if len(domains) == 0 {
-		log.Println("No domains given.")
+		slog.Warn("No domains given.")
 		return
 	}
 
