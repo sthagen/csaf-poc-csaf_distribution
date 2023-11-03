@@ -10,9 +10,6 @@ Can be used for automated forwarding of CSAF documents.
 ### [csaf_validator](docs/csaf_validator.md)
 is a tool to validate local advisories files against the JSON Schema and an optional remote validator.
 
-### [csaf_searcher](docs/csaf_searcher.md)
-is a tool to search through local advisories. It finds PURLs based on the product ID of an advisory.
-
 ## Tools for advisory providers
 
 ### [csaf_provider](docs/csaf_provider.md)
@@ -27,6 +24,12 @@ is a tool for testing a CSAF Trusted Provider according to [Section 7 of the CSA
 
 ### [csaf_aggregator](docs/csaf_aggregator.md)
 is a CSAF Aggregator, to list or mirror providers.
+
+## Other stuff
+
+### [examples](./examples/README.md)
+are small examples of how to use `github.com/csaf-poc/csaf_distribution` as an API.
+Currently this is a work in progress. They may be extended and/or changed in the future.
 
 ## Setup
 Binaries for the server side are only available and tested
@@ -59,19 +62,16 @@ Download the binaries from the most recent release assets on Github.
 
 Binaries will be placed in directories named like `bin-linux-amd64/` and `bin-windows-amd64/`.
 
-- Maintainers only: No need to do this if you have cloned this repository for unmodified usage only.
-```
-go generate ./...
-```
-will update the machine generated code.
-
-
 ### Setup (Trusted Provider)
 
 - [Install](https://nginx.org/en/docs/install.html) **nginx**
 - To install a TLS server certificate on nginx see [docs/install-server-certificate.md](docs/install-server-certificate.md)
 - To configure nginx see [docs/provider-setup.md](docs/provider-setup.md)
 - To configure nginx for client certificate authentication see [docs/client-certificate-setup.md](docs/client-certificate-setup.md)
+
+### Development
+
+For further details of the development process consult our [development page](./docs/Development.md).
 
 
 ## License
