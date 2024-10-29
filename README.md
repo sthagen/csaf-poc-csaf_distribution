@@ -23,7 +23,6 @@ and its [errata](https://docs.oasis-open.org/csaf/csaf/v2.0/csaf-v2.0.html))
 trusted provider, checker, aggregator and downloader.
 Includes an uploader command line tool for the trusted provider.
 
-
 ## Tools for users
 ### [csaf_downloader](docs/csaf_downloader.md)
 is a tool for downloading advisories from a provider.
