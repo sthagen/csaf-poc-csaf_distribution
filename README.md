@@ -8,6 +8,13 @@
  Software-Engineering: 2024 Intevation GmbH <https://intevation.de>
 -->
 
+
+> [!IMPORTANT]
+> Adjust your links and go module paths if you still have `csaf-poc` in them, to avoid future breakage.
+> (This repository was moved here on 2024-10-28. The old one is decrecated
+> and redirection will be switched off in a few months.)
+
+
 # csaf_distribution
 
 Implements a [CSAF](https://csaf.io/)
@@ -15,6 +22,7 @@ Implements a [CSAF](https://csaf.io/)
 and its [errata](https://docs.oasis-open.org/csaf/csaf/v2.0/csaf-v2.0.html))
 trusted provider, checker, aggregator and downloader.
 Includes an uploader command line tool for the trusted provider.
+
 
 ## Tools for users
 ### [csaf_downloader](docs/csaf_downloader.md)
