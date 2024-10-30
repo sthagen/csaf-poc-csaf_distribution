@@ -14,7 +14,7 @@
 > 1. Adjust your HTML links.
 > 2. Prepare to adjust your go module paths once https://github.com/gocsaf/csaf/issues/579 is solved.
 > (This repository was moved here on 2024-10-28. The old one is decrecated
-> and redirection will be switched off in a few months.)
+> and redirection will be switched off a few months later.)
 
 
 # csaf_distribution
