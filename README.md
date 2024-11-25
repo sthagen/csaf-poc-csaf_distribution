@@ -12,8 +12,8 @@
 > [!IMPORTANT]
 > To avoid future breakage, if you still use `csaf-poc`:
 > 1. Adjust your HTML links.
-> 2. Prepare to adjust your go module paths once https://github.com/gocsaf/csaf/issues/579 is solved.
-> 
+> 2. Adjust your go module paths, see [#579](https://github.com/gocsaf/csaf/issues/579#issuecomment-2497244379).
+>
 > (This repository was moved here on 2024-10-28. The old one is deprecated
 > and redirection will be switched off a few months later.)
 
