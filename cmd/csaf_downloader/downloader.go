@@ -47,6 +47,7 @@ type hashFetchInfo struct {
 
 type downloader struct {
 	cfg       *config
+	client    *util.Client // Used for testing
 	keys      *crypto.KeyRing
 	validator csaf.RemoteValidator
 	forwarder *forwarder
@@ -130,6 +131,11 @@ func (d *downloader) httpClient() util.Client {
 	}
 
 	client := util.Client(&hClient)
+
+	// Overwrite for testing purposes
+	if client != nil {
+		client = *d.client
+	}
 
 	// Add extra headers.
 	if len(d.cfg.ExtraHeader) > 0 {
