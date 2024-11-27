@@ -33,8 +33,8 @@ import (
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"golang.org/x/time/rate"
 
-	"github.com/csaf-poc/csaf_distribution/v3/csaf"
-	"github.com/csaf-poc/csaf_distribution/v3/util"
+	"github.com/gocsaf/csaf/v3/csaf"
+	"github.com/gocsaf/csaf/v3/util"
 )
 
 // topicMessages stores the collected topicMessages for a specific topic.
@@ -429,11 +429,9 @@ func (p *processor) fullClient() util.Client {
 	client := util.Client(&hClient)
 
 	// Add extra headers.
-	if len(p.cfg.ExtraHeader) > 0 {
-		client = &util.HeaderClient{
-			Client: client,
-			Header: p.cfg.ExtraHeader,
-		}
+	client = &util.HeaderClient{
+		Client: client,
+		Header: p.cfg.ExtraHeader,
 	}
 
 	// Add optional URL logging.
@@ -1443,9 +1441,9 @@ func (p *processor) checkWellknownSecurityDNS(domain string) error {
 }
 
 // checkPGPKeys checks if the OpenPGP keys are available and valid, fetches
-// the the remotely keys and compares the fingerprints.
-// As a result of these a respective error messages are passed to badPGP method
-// in case of errors. It returns nil if all checks are passed.
+// the remote pubkeys and compares the fingerprints.
+// As a result of these checks respective error messages are passed
+// to badPGP methods. It returns nil if all checks are passed.
 func (p *processor) checkPGPKeys(_ string) error {
 	p.badPGPs.use()
 
@@ -1511,7 +1509,7 @@ func (p *processor) checkPGPKeys(_ string) error {
 		}
 
 		if !strings.EqualFold(ckey.GetFingerprint(), string(key.Fingerprint)) {
-			p.badPGPs.error("Fingerprint of public OpenPGP key %s does not match remotely loaded.", u)
+			p.badPGPs.error("Given Fingerprint (%q) of public OpenPGP key %q does not match remotely loaded (%q).", string(key.Fingerprint), u, ckey.GetFingerprint())
 			continue
 		}
 		if p.keys == nil {

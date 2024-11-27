@@ -34,8 +34,8 @@ import (
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"golang.org/x/time/rate"
 
-	"github.com/csaf-poc/csaf_distribution/v3/csaf"
-	"github.com/csaf-poc/csaf_distribution/v3/util"
+	"github.com/gocsaf/csaf/v3/csaf"
+	"github.com/gocsaf/csaf/v3/util"
 )
 
 type hashFetchInfo struct {
@@ -138,11 +138,9 @@ func (d *downloader) httpClient() util.Client {
 	}
 
 	// Add extra headers.
-	if len(d.cfg.ExtraHeader) > 0 {
-		client = &util.HeaderClient{
-			Client: client,
-			Header: d.cfg.ExtraHeader,
-		}
+	client = &util.HeaderClient{
+		Client: client,
+		Header: d.cfg.ExtraHeader,
 	}
 
 	// Add optional URL logging.
@@ -378,7 +376,7 @@ func (d *downloader) loadOpenPGPKeys(
 		if !strings.EqualFold(ckey.GetFingerprint(), string(key.Fingerprint)) {
 			slog.Warn(
 				"Fingerprint of public OpenPGP key does not match remotely loaded",
-				"url", u)
+				"url", u, "fingerprint", key.Fingerprint, "remote-fingerprint", ckey.GetFingerprint())
 			continue
 		}
 		if d.keys == nil {

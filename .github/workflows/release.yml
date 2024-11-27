@@ -8,6 +8,8 @@ jobs:
   releases-matrix:
     name: Release Go binaries
     runs-on: ubuntu-20.04
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -24,5 +26,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
             files: |
-                dist/csaf_distribution-*.zip
-                dist/csaf_distribution-*.tar.gz
+                dist/csaf-*.zip
+                dist/csaf-*.tar.gz

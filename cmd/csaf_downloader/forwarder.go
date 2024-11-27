@@ -19,8 +19,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/csaf-poc/csaf_distribution/v3/internal/misc"
-	"github.com/csaf-poc/csaf_distribution/v3/util"
+	"github.com/gocsaf/csaf/v3/internal/misc"
+	"github.com/gocsaf/csaf/v3/util"
 )
 
 // failedForwardDir is the name of the special sub folder
@@ -111,11 +111,9 @@ func (f *forwarder) httpClient() util.Client {
 	client := util.Client(&hClient)
 
 	// Add extra headers.
-	if len(f.cfg.ForwardHeader) > 0 {
-		client = &util.HeaderClient{
-			Client: client,
-			Header: f.cfg.ForwardHeader,
-		}
+	client = &util.HeaderClient{
+		Client: client,
+		Header: f.cfg.ForwardHeader,
 	}
 
 	// Add optional URL logging.
