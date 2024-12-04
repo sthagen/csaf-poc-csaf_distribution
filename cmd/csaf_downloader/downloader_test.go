@@ -11,71 +11,15 @@ package main
 import (
 	"context"
 	"errors"
-	"html/template"
 	"log/slog"
-	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/gocsaf/csaf/v3/internal/options"
+	"github.com/gocsaf/csaf/v3/internal/testutil"
 	"github.com/gocsaf/csaf/v3/util"
 )
-
-type ProviderParams struct {
-	URL          string
-	EnableSha256 bool
-	EnableSha512 bool
-}
-
-func ProviderHandler(params *ProviderParams, directoryProvider bool) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := "../../testdata/"
-		if directoryProvider {
-			path += "simple-directory-provider"
-		} else {
-			path += "simple-rolie-provider"
-		}
-
-		path += r.URL.Path
-
-		if strings.HasSuffix(r.URL.Path, "/") {
-			path += "index.html"
-		}
-
-		content, err := os.ReadFile(path)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		switch {
-		case strings.HasSuffix(path, ".html"):
-			w.Header().Add("Content-Type", "text/html")
-		case strings.HasSuffix(path, ".json"):
-			w.Header().Add("Content-Type", "application/json")
-		case strings.HasSuffix(path, ".sha256") && directoryProvider && !params.EnableSha256:
-			w.WriteHeader(http.StatusNotFound)
-			return
-		case strings.HasSuffix(path, ".sha512") && directoryProvider && !params.EnableSha512:
-			w.WriteHeader(http.StatusNotFound)
-			return
-		default:
-			w.Header().Add("Content-Type", "text/plain")
-		}
-
-		tmplt, err := template.New("base").Parse(string(content))
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		err = tmplt.Execute(w, params)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	})
-}
 
 func checkIfFileExists(path string, t *testing.T) bool {
 	if _, err := os.Stat(path); err == nil {
@@ -169,12 +113,12 @@ func TestShaMarking(t *testing.T) {
 		t.Run(test.name, func(tt *testing.T) {
 			tt.Parallel()
 			serverURL := ""
-			params := ProviderParams{
+			params := testutil.ProviderParams{
 				URL:          "",
 				EnableSha256: test.enableSha256,
 				EnableSha512: test.enableSha512,
 			}
-			server := httptest.NewTLSServer(ProviderHandler(&params, test.directoryProvider))
+			server := httptest.NewTLSServer(testutil.ProviderHandler(&params, test.directoryProvider))
 			defer server.Close()
 
 			serverURL = server.URL
