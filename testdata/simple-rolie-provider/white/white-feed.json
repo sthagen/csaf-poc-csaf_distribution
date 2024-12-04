@@ -5,11 +5,11 @@
     "link": [
       {
         "rel": "self",
-        "href": "/white/csaf-feed-tlp-white.json"
+        "href": "{{.URL}}/white/csaf-feed-tlp-white.json"
       },
       {
         "rel": "service",
-        "href": "/service.json"
+        "href": "{{.URL}}/service.json"
       }
     ],
     "category": [
@@ -26,30 +26,30 @@
         "link": [
           {
             "rel": "self",
-            "href": "/white/avendor-advisory-0004.json"
+            "href": "{{.URL}}/white/avendor-advisory-0004.json"
           },
           {{if .EnableSha256}}
           {
             "rel": "hash",
-            "href": "/white/avendor-advisory-0004.json.sha256"
+            "href": "{{.URL}}/white/avendor-advisory-0004.json.sha256"
           },
           {{end}}
           {{if .EnableSha512}}
           {
             "rel": "hash",
-            "href": "/white/avendor-advisory-0004.json.sha512"
+            "href": "{{.URL}}/white/avendor-advisory-0004.json.sha512"
           },
           {{end}}
           {
             "rel": "signature",
-            "href": "/white/avendor-advisory-0004.json.asc"
+            "href": "{{.URL}}/white/avendor-advisory-0004.json.asc"
           }
         ],
         "published": "2020-01-01T00:00:00Z",
         "updated": "2020-01-01T00:00:00Z",
         "content": {
           "type": "application/json",
-          "src": "/avendor-advisory-0004.json"
+          "src": "{{.URL}}/avendor-advisory-0004.json"
         },
         "format": {
           "schema": "https://docs.oasis-open.org/csaf/csaf/v2.0/csaf_json_schema.json",
