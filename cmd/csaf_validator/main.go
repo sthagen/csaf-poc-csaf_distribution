@@ -69,6 +69,8 @@ func run(opts *options, files []string) error {
 				"preparing remote validator failed: %w", err)
 		}
 		defer validator.Close()
+	} else {
+		log.Printf("warn: no remote validator specified")
 	}
 
 	// Select amount level of output for remote validation.
