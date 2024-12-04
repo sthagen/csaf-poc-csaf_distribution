@@ -23,10 +23,10 @@ import (
 )
 
 const (
-	exitCodeAllValid               = 0
-	exitCodeSchemaInvalid          = 1 << 0
-	exitCodeNoRemoteValidator      = 1 << 1
-	exitCodeFailedRemoteValidation = 1 << 2
+	exitCodeSchemaInvalid = 1 << iota
+	exitCodeNoRemoteValidator
+	exitCodeFailedRemoteValidation
+	exitCodeAllValid = 0
 )
 
 type options struct {
