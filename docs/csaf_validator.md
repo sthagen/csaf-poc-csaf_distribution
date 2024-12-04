@@ -2,6 +2,13 @@
 
 is a tool to validate local advisories files against the JSON Schema and an optional remote validator.
 
+### Exit codes
+If no fatal error occurs the program will exit with the following codes:
+- `0`: all valid
+- `2⁰`: schema invalid
+- `2¹`: no remote validator configured
+- `2²`: failure in remote validation
+
 ### Usage
 
 ```
