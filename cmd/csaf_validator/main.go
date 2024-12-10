@@ -150,7 +150,7 @@ func run(opts *options, files []string) error {
 	}
 
 	// Exit code is based on validation results
-	os.Exit(exitCodeAllValid)
+	os.Exit(exitCode)
 	return nil
 }
 
