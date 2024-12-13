@@ -178,7 +178,7 @@
     "description": "Integrity",
     "messages": [
       {
-        "type": 2,
+        "type": 0,
         "text": "Fetching {{.URL}}/white/avendor-advisory-0004.json.sha256 failed: Status code 404 (404 Not Found)"
       }
     ]
