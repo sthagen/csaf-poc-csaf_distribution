@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -586,14 +585,11 @@ func (p *processor) rolieFeedEntries(feed string) ([]csaf.AdvisoryFile, error) {
 
 		switch {
 		case sha256 == "" && sha512 == "":
-			slog.Error("No hash listed on ROLIE feed", "file", url)
-			return
+			p.badROLIEFeed.error("No hash listed on ROLIE feed %s", url)
 		case sign == "":
-			slog.Error("No signature listed on ROLIE feed", "file", url)
-			return
-		default:
-			file = csaf.PlainAdvisoryFile{Path: url, SHA256: sha256, SHA512: sha512, Sign: sign}
+			p.badROLIEFeed.error("No signature listed on ROLIE feed %s", url)
 		}
+		file = csaf.PlainAdvisoryFile{Path: url, SHA256: sha256, SHA512: sha512, Sign: sign}
 
 		files = append(files, file)
 	})
