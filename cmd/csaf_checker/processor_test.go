@@ -146,9 +146,9 @@ func TestShaMarking(t *testing.T) {
 					EnableSha512: test.enableSha512,
 				},
 				test.directoryProvider)
-			for i, want := range report.Domains[0].Requirements {
-				if !reflect.DeepEqual(expected[i], *want) {
-					t.Errorf("SHA marking %v: Expected %v, got %v", test.name, *want, expected[i])
+			for i, got := range report.Domains[0].Requirements {
+				if !reflect.DeepEqual(expected[i], *got) {
+					t.Errorf("SHA marking %v: Expected %v, got %v", test.name, expected[i], *got)
 				}
 			}
 

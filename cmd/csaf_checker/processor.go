@@ -776,8 +776,13 @@ func (p *processor) integrity(
 				continue
 			}
 			if res.StatusCode != http.StatusOK {
-				p.badIntegrities.error("Fetching %s failed: Status code %d (%s)",
-					hashFile, res.StatusCode, res.Status)
+				if f.IsDirectory() {
+					p.badIntegrities.info("Fetching %s failed: Status code %d (%s)",
+						hashFile, res.StatusCode, res.Status)
+				} else {
+					p.badIntegrities.error("Fetching %s failed: Status code %d (%s)",
+						hashFile, res.StatusCode, res.Status)
+				}
 				continue
 			}
 			h, err := func() ([]byte, error) {
