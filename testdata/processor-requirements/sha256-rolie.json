@@ -172,7 +172,7 @@
     "description": "ROLIE category document",
     "messages": [
       {
-        "type": 0,
+        "type": 1,
         "text": "Fetching {{.URL}}/white/category-white.json failed. Status code 404 (404 Not Found)"
       }
     ]
