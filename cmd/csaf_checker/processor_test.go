@@ -29,8 +29,11 @@ func getRequirementTestData(t *testing.T, params testutil.ProviderParams, direct
 	if params.EnableSha512 {
 		path += "sha512-"
 	}
-	if params.ForbidHashFetching {
-		path += "forbid-hash-fetching-"
+	if params.ForbidSha256 {
+		path += "forbid-sha256-"
+	}
+	if params.ForbidSha512 {
+		path += "forbid-sha512-"
 	}
 	if directoryProvider {
 		path += "directory"
@@ -64,74 +67,68 @@ func getRequirementTestData(t *testing.T, params testutil.ProviderParams, direct
 
 func TestShaMarking(t *testing.T) {
 	tests := []struct {
-		name               string
-		directoryProvider  bool
-		enableSha256       bool
-		enableSha512       bool
-		forbidHashFetching bool
+		name              string
+		directoryProvider bool
+		enableSha256      bool
+		enableSha512      bool
+		forbidSha256      bool
+		forbidSha512      bool
 	}{
 		{
-			name:               "deliver sha256 and sha512",
-			directoryProvider:  false,
-			enableSha256:       true,
-			enableSha512:       true,
-			forbidHashFetching: false,
+			name:              "deliver sha256 and sha512",
+			directoryProvider: false,
+			enableSha256:      true,
+			enableSha512:      true,
 		},
 		{
-			name:               "enable sha256 and sha512, forbid fetching",
-			directoryProvider:  false,
-			enableSha256:       true,
-			enableSha512:       true,
-			forbidHashFetching: true,
+			name:              "enable sha256 and sha512, forbid fetching",
+			directoryProvider: false,
+			enableSha256:      true,
+			enableSha512:      true,
+			forbidSha256:      true,
+			forbidSha512:      true,
 		},
 		{
-			name:               "only deliver sha256",
-			directoryProvider:  false,
-			enableSha256:       true,
-			enableSha512:       false,
-			forbidHashFetching: false,
+			name:              "only deliver sha256",
+			directoryProvider: false,
+			enableSha256:      true,
+			enableSha512:      false,
 		},
 		{
-			name:               "only deliver sha512",
-			directoryProvider:  false,
-			enableSha256:       false,
-			enableSha512:       true,
-			forbidHashFetching: false,
+			name:              "only deliver sha512",
+			directoryProvider: false,
+			enableSha256:      false,
+			enableSha512:      true,
 		},
 		{
-			name:               "deliver sha256 and sha512, directory provider",
-			directoryProvider:  true,
-			enableSha256:       true,
-			enableSha512:       true,
-			forbidHashFetching: false,
+			name:              "deliver sha256 and sha512, directory provider",
+			directoryProvider: true,
+			enableSha256:      true,
+			enableSha512:      true,
 		},
 		{
-			name:               "only deliver sha256, directory provider",
-			directoryProvider:  true,
-			enableSha256:       true,
-			enableSha512:       false,
-			forbidHashFetching: false,
+			name:              "only deliver sha256, directory provider",
+			directoryProvider: true,
+			enableSha256:      true,
+			enableSha512:      false,
 		},
 		{
-			name:               "only deliver sha512, directory provider",
-			directoryProvider:  true,
-			enableSha256:       false,
-			enableSha512:       true,
-			forbidHashFetching: false,
+			name:              "only deliver sha512, directory provider",
+			directoryProvider: true,
+			enableSha256:      false,
+			enableSha512:      true,
 		},
 		{
-			name:               "no hash",
-			directoryProvider:  false,
-			enableSha256:       false,
-			enableSha512:       false,
-			forbidHashFetching: false,
+			name:              "no hash",
+			directoryProvider: false,
+			enableSha256:      false,
+			enableSha512:      false,
 		},
 		{
-			name:               "no hash, directory provider",
-			directoryProvider:  true,
-			enableSha256:       false,
-			enableSha512:       false,
-			forbidHashFetching: false,
+			name:              "no hash, directory provider",
+			directoryProvider: true,
+			enableSha256:      false,
+			enableSha512:      false,
 		},
 	}
 
@@ -142,10 +139,11 @@ func TestShaMarking(t *testing.T) {
 			tt.Parallel()
 			serverURL := ""
 			params := testutil.ProviderParams{
-				URL:                "",
-				EnableSha256:       test.enableSha256,
-				EnableSha512:       test.enableSha512,
-				ForbidHashFetching: test.forbidHashFetching,
+				URL:          "",
+				EnableSha256: test.enableSha256,
+				EnableSha512: test.enableSha512,
+				ForbidSha256: test.forbidSha256,
+				ForbidSha512: test.forbidSha512,
 			}
 			server := httptest.NewTLSServer(testutil.ProviderHandler(&params, test.directoryProvider))
 			defer server.Close()
@@ -173,10 +171,11 @@ func TestShaMarking(t *testing.T) {
 			}
 			expected := getRequirementTestData(t,
 				testutil.ProviderParams{
-					URL:                serverURL,
-					EnableSha256:       test.enableSha256,
-					EnableSha512:       test.enableSha512,
-					ForbidHashFetching: test.forbidHashFetching,
+					URL:          serverURL,
+					EnableSha256: test.enableSha256,
+					EnableSha512: test.enableSha512,
+					ForbidSha256: test.forbidSha256,
+					ForbidSha512: test.forbidSha512,
 				},
 				test.directoryProvider)
 			for i, got := range report.Domains[0].Requirements {

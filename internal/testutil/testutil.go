@@ -18,10 +18,11 @@ import (
 
 // ProviderParams configures the test provider.
 type ProviderParams struct {
-	URL                string
-	EnableSha256       bool
-	EnableSha512       bool
-	ForbidHashFetching bool
+	URL          string
+	EnableSha256 bool
+	EnableSha512 bool
+	ForbidSha256 bool
+	ForbidSha512 bool
 }
 
 // ProviderHandler returns a test provider handler with the specified configuration.
@@ -50,7 +51,10 @@ func ProviderHandler(params *ProviderParams, directoryProvider bool) http.Handle
 			w.Header().Add("Content-Type", "text/html")
 		case strings.HasSuffix(path, ".json"):
 			w.Header().Add("Content-Type", "application/json")
-		case (strings.HasSuffix(path, ".sha256") || strings.HasSuffix(path, ".sha512")) && params.ForbidHashFetching:
+		case (strings.HasSuffix(path, ".sha256")) && params.ForbidSha256:
+			w.WriteHeader(http.StatusForbidden)
+			return
+		case strings.HasSuffix(path, ".sha512") && params.ForbidSha512:
 			w.WriteHeader(http.StatusForbidden)
 			return
 		case strings.HasSuffix(path, ".sha256") && directoryProvider && !params.EnableSha256:
