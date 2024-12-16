@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	exitCodeSchemaInvalid = 1 << iota
+	exitCodeSchemaInvalid = 2 << iota
 	exitCodeNoRemoteValidator
 	exitCodeFailedRemoteValidation
 	exitCodeAllValid = 0

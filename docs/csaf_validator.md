@@ -5,9 +5,10 @@ is a tool to validate local advisories files against the JSON Schema and an opti
 ### Exit codes
 If no fatal error occurs the program will exit with an exit code `n` with the following conditions:
 - `n == 0`: all valid
-- `(n / 2) % 1 == 1`: schema validation failed
-- `(n / 4) % 1 == 1`: no remote validator configured
-- `(n / 8) % 1 == 1`: failure in remote validation
+- `(n & 1) > 0`: general error, see logs
+- `(n & 2) > 0`: schema validation failed
+- `(n & 4) > 0`: no remote validator configured
+- `(n & 8) > 0`: failure in remote validation
 
 ### Usage
 
