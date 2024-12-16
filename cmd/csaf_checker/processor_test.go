@@ -89,6 +89,22 @@ func TestShaMarking(t *testing.T) {
 			forbidSha512:      true,
 		},
 		{
+			name:              "enable sha256 and sha512, forbid sha256",
+			directoryProvider: false,
+			enableSha256:      true,
+			enableSha512:      true,
+			forbidSha256:      true,
+			forbidSha512:      false,
+		},
+		{
+			name:              "enable sha256 and sha512, forbid sha512",
+			directoryProvider: false,
+			enableSha256:      true,
+			enableSha512:      true,
+			forbidSha256:      false,
+			forbidSha512:      true,
+		},
+		{
 			name:              "only deliver sha256",
 			directoryProvider: false,
 			enableSha256:      true,
