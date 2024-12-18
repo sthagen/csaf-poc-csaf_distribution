@@ -757,6 +757,9 @@ func (p *processor) integrity(
 			hashes = append(hashes, hash{"SHA512", f.SHA512URL, s512.Sum(nil)})
 		}
 
+		couldFetchHash := false
+		hashFetchErrors := []string{}
+
 		for _, x := range hashes {
 			hu, err := url.Parse(x.url())
 			if err != nil {
@@ -768,19 +771,15 @@ func (p *processor) integrity(
 
 			p.checkTLS(hashFile)
 			if res, err = client.Get(hashFile); err != nil {
-				p.badIntegrities.error("Fetching %s failed: %v.", hashFile, err)
+				hashFetchErrors = append(hashFetchErrors, fmt.Sprintf("Fetching %s failed: %v.", hashFile, err))
 				continue
 			}
 			if res.StatusCode != http.StatusOK {
-				if f.IsDirectory() {
-					p.badIntegrities.info("Fetching %s failed: Status code %d (%s)",
-						hashFile, res.StatusCode, res.Status)
-				} else {
-					p.badIntegrities.error("Fetching %s failed: Status code %d (%s)",
-						hashFile, res.StatusCode, res.Status)
-				}
+				hashFetchErrors = append(hashFetchErrors, fmt.Sprintf("Fetching %s failed: Status code %d (%s)",
+					hashFile, res.StatusCode, res.Status))
 				continue
 			}
+			couldFetchHash = true
 			h, err := func() ([]byte, error) {
 				defer res.Body.Close()
 				return util.HashFromReader(res.Body)
@@ -798,6 +797,19 @@ func (p *processor) integrity(
 					x.ext, u, hashFile)
 			}
 		}
+
+		msgType := ErrorType
+		// Log only as warning, if the other hash could be fetched
+		if couldFetchHash {
+			msgType = WarnType
+		}
+		if f.IsDirectory() {
+			msgType = InfoType
+		}
+		for _, fetchError := range hashFetchErrors {
+			p.badIntegrities.add(msgType, fetchError)
+		}
+
 		// Check signature
 		su, err := url.Parse(f.SignURL())
 		if err != nil {
