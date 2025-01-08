@@ -133,7 +133,7 @@ func (d *downloader) httpClient() util.Client {
 	client := util.Client(&hClient)
 
 	// Overwrite for testing purposes
-	if client != nil {
+	if d.client != nil {
 		client = *d.client
 	}
 
