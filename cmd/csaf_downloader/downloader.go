@@ -514,7 +514,8 @@ nextAdvisory:
 				url:       file.SHA512URL(),
 				warn:      true,
 				hashType:  algSha512,
-				preferred: strings.EqualFold(string(d.cfg.PreferredHash), string(algSha512))})
+				preferred: strings.EqualFold(string(d.cfg.PreferredHash), string(algSha512)),
+			})
 		} else {
 			slog.Info("SHA512 not present")
 		}
@@ -523,7 +524,8 @@ nextAdvisory:
 				url:       file.SHA256URL(),
 				warn:      true,
 				hashType:  algSha256,
-				preferred: strings.EqualFold(string(d.cfg.PreferredHash), string(algSha256))})
+				preferred: strings.EqualFold(string(d.cfg.PreferredHash), string(algSha256)),
+			})
 		} else {
 			slog.Info("SHA256 not present")
 		}
