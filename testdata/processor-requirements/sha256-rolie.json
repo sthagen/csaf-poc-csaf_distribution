@@ -153,7 +153,7 @@
     "messages": [
       {
         "type": 0,
-        "text": "All checked ROLIE feeds validated fine."
+        "text": "{{.URL}}/white/avendor-advisory-0004.json has no sha512 hash file listed"
       }
     ]
   },
