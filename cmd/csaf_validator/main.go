@@ -127,7 +127,6 @@ func run(opts *options, files []string) error {
 		// Check filename against ID
 		if err := util.IDMatchesFilename(eval, doc, filepath.Base(file)); err != nil {
 			log.Printf("%s: %s.\n", file, err)
-			continue
 		}
 
 		// Validate against remote validator.
