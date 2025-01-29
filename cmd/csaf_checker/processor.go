@@ -1420,7 +1420,7 @@ func (p *processor) checkWellknownSecurityDNS(domain string) error {
 	p.badSecurity.use()
 
 	// Report about Securitytxt:
-	// Only report about Legacy if default was succesful (0).
+	// Only report about default location if it was succesful (0).
 	// Report default and legacy as errors if neither was succesful (1).
 	// Warn about missing security in the default position if not found
 	// but found in the legacy location, and inform about finding it there (2).
