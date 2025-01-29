@@ -1339,7 +1339,6 @@ func (p *processor) checkSecurityFolder(folder string) string {
 
 // checkDNS checks if the "csaf.data.security.domain.tld" DNS record is available
 // and serves the "provider-metadata.json".
-// It returns an empty string if all checks are passed, otherwise the errormessage.
 func (p *processor) checkDNS(domain string) {
 
 	p.badDNSPath.use()
@@ -1373,8 +1372,7 @@ func (p *processor) checkDNS(domain string) {
 }
 
 // checkWellknown checks if the provider-metadata.json file is
-// available under the /.well-known/csaf/ directory. Returns the errormessage if
-// an error was encountered, or an empty string otherwise
+// available under the /.well-known/csaf/ directory.
 func (p *processor) checkWellknown(domain string) {
 
 	p.badWellknownMetadata.use()
@@ -1402,15 +1400,13 @@ func (p *processor) checkWellknown(domain string) {
 //  4. Finally it checks if the "csaf.data.security.domain.tld" DNS record
 //     is available and serves the "provider-metadata.json".
 //
-// /
-// If all three checks fail, errors are given,
-// otherwise warnings for all failed checks.
-// The function returns nil, unless errors outside the checks were found.
-// In that case, errors are returned.
+// For the security.txt checks, it first checks the default location.
+// Should this lookup fail, a warning is will be given and a lookup
+// for the legacy location will be made. If this fails as well, then an
+// error is given.
 func (p *processor) checkWellknownSecurityDNS(domain string) error {
 
 	p.checkWellknown(domain)
-	p.checkDNS(domain)
 
 	// Security check for well known (default) and legacy location
 	warnings, sDMessage := p.checkSecurity(domain, false)
@@ -1423,22 +1419,24 @@ func (p *processor) checkWellknownSecurityDNS(domain string) error {
 
 	p.badSecurity.use()
 
-	// Info, Warning or Error depending on kind and warningS
-	kindSD := WarnType
-	if warnings == 0 {
-		kindSD = InfoType
-	}
-	kindSL := ErrorType
-	if warnings == 2 {
-		kindSL = InfoType
+	// Report about Securitytxt:
+	// Only report about Legacy if default was succesful (0).
+	// Report default and legacy as errors if neither was succesful (1).
+	// Warn about missing security in the default position if not found
+	// but found in the legacy location, and inform about finding it there (2).
+	switch warnings {
+	case 0:
+		p.badSecurity.add(InfoType, sDMessage)
+	case 1:
+		p.badSecurity.add(ErrorType, sDMessage)
+		p.badSecurity.add(ErrorType, sLMessage)
+	case 2:
+		p.badSecurity.add(WarnType, sDMessage)
+		p.badSecurity.add(InfoType, sLMessage)
 	}
 
-	p.badSecurity.add(kindSD, sDMessage)
-	// only if the well-known security.txt was not successful:
-	// report about the legacy location
-	if warnings != 0 {
-		p.badSecurity.add(kindSL, sLMessage)
-	}
+	p.checkDNS(domain)
+
 	return nil
 }
 
