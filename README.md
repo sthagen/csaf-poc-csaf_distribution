@@ -20,7 +20,7 @@
 
 # csaf
 
-Implements a [CSAF](https://csaf.io/)
+Implements a [CSAF](https://oasis-open.github.io/csaf-documentation/)
 ([specification v2.0](https://docs.oasis-open.org/csaf/csaf/v2.0/os/csaf-v2.0-os.html)
 and its [errata](https://docs.oasis-open.org/csaf/csaf/v2.0/csaf-v2.0.html))
 trusted provider, checker, aggregator and downloader.
