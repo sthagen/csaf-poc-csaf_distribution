@@ -1340,49 +1340,57 @@ func (p *processor) checkSecurityFolder(folder string) string {
 // checkDNS checks if the "csaf.data.security.domain.tld" DNS record is available
 // and serves the "provider-metadata.json".
 // It returns an empty string if all checks are passed, otherwise the errormessage.
-func (p *processor) checkDNS(domain string) string {
+func (p *processor) checkDNS(domain string) {
+
+	p.badDNSPath.use()
 
 	client := p.httpClient()
 	path := "https://csaf.data.security." + domain
 	res, err := client.Get(path)
 	if err != nil {
-		return fmt.Sprintf("Fetching %s failed: %v", path, err)
+		p.badDNSPath.add(ErrorType,
+			fmt.Sprintf("Fetching %s failed: %v", path, err))
+		return
 	}
 	if res.StatusCode != http.StatusOK {
-		return fmt.Sprintf("Fetching %s failed. Status code %d (%s)",
-			path, res.StatusCode, res.Status)
-
+		p.badDNSPath.add(ErrorType,
+			fmt.Sprintf("Fetching %s failed. Status code %d (%s)",
+				path, res.StatusCode, res.Status))
 	}
 	hash := sha256.New()
 	defer res.Body.Close()
 	content, err := io.ReadAll(res.Body)
 	if err != nil {
-		return fmt.Sprintf("Error while reading the response from %s", path)
+		p.badDNSPath.add(ErrorType,
+			fmt.Sprintf("Error while reading the response from %s", path))
 	}
 	hash.Write(content)
 	if !bytes.Equal(hash.Sum(nil), p.pmd256) {
-		return fmt.Sprintf("%s does not serve the same provider-metadata.json as previously found", path)
+		p.badDNSPath.add(ErrorType,
+			fmt.Sprintf("%s does not serve the same provider-metadata.json as previously found",
+				path))
 	}
-	return ""
 }
 
-// checkWellknownMetadataReporter checks if the provider-metadata.json file is
+// checkWellknown checks if the provider-metadata.json file is
 // available under the /.well-known/csaf/ directory. Returns the errormessage if
 // an error was encountered, or an empty string otherwise
-func (p *processor) checkWellknown(domain string) string {
+func (p *processor) checkWellknown(domain string) {
+
+	p.badWellknownMetadata.use()
 
 	client := p.httpClient()
 	path := "https://" + domain + "/.well-known/csaf/provider-metadata.json"
 
 	res, err := client.Get(path)
 	if err != nil {
-		return fmt.Sprintf("Fetching %s failed: %v", path, err)
+		p.badWellknownMetadata.add(ErrorType,
+			fmt.Sprintf("Fetching %s failed: %v", path, err))
 	}
 	if res.StatusCode != http.StatusOK {
-		return fmt.Sprintf("Fetching %s failed. Status code %d (%s)",
-			path, res.StatusCode, res.Status)
+		p.badWellknownMetadata.add(ErrorType, fmt.Sprintf("Fetching %s failed. Status code %d (%s)",
+			path, res.StatusCode, res.Status))
 	}
-	return ""
 }
 
 // checkWellknownSecurityDNS
@@ -1401,49 +1409,35 @@ func (p *processor) checkWellknown(domain string) string {
 // In that case, errors are returned.
 func (p *processor) checkWellknownSecurityDNS(domain string) error {
 
-	warningsW := p.checkWellknown(domain)
+	p.checkWellknown(domain)
+	p.checkDNS(domain)
+
 	// Security check for well known (default) and legacy location
-	warningsS, sDMessage := p.checkSecurity(domain, false)
+	warnings, sDMessage := p.checkSecurity(domain, false)
 	// if the security.txt under .well-known was not okay
 	// check for a security.txt within its legacy location
 	sLMessage := ""
-	if warningsS == 1 {
-		warningsS, sLMessage = p.checkSecurity(domain, true)
+	if warnings == 1 {
+		warnings, sLMessage = p.checkSecurity(domain, true)
 	}
-	warningsD := p.checkDNS(domain)
 
-	p.badWellknownMetadata.use()
 	p.badSecurity.use()
-	p.badDNSPath.use()
-
-	var kind MessageType
-	if warningsS != 1 || warningsD == "" || warningsW == "" {
-		kind = WarnType
-	} else {
-		kind = ErrorType
-	}
 
 	// Info, Warning or Error depending on kind and warningS
-	kindSD := kind
-	if warningsS == 0 {
+	kindSD := WarnType
+	if warnings == 0 {
 		kindSD = InfoType
 	}
-	kindSL := kind
-	if warningsS == 2 {
+	kindSL := ErrorType
+	if warnings == 2 {
 		kindSL = InfoType
 	}
 
-	if warningsW != "" {
-		p.badWellknownMetadata.add(kind, warningsW)
-	}
 	p.badSecurity.add(kindSD, sDMessage)
 	// only if the well-known security.txt was not successful:
 	// report about the legacy location
-	if warningsS != 0 {
+	if warnings != 0 {
 		p.badSecurity.add(kindSL, sLMessage)
-	}
-	if warningsD != "" {
-		p.badDNSPath.add(kind, warningsD)
 	}
 	return nil
 }
