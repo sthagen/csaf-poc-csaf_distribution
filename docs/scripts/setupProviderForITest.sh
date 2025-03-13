@@ -56,11 +56,14 @@ location /cgi-bin/ {
 sudo sed -i "/^server {/a\        include fcgiwrap.conf;" $NGINX_CONFIG_PATH
 
 echo "
-        # For atomic directory switches
-        disable_symlinks off;
+		# For atomic directory switches
+		disable_symlinks off;
 
-        # directory listings
-        autoindex on;
+		# directory listings
+		autoindex on;
+
+		# allow others web applications to get the static information
+		add_header Access-Control-Allow-Origin "*";
 " > locationConfig.txt
 sudo sed -i "/^\s*location \/ {/r locationConfig.txt" $NGINX_CONFIG_PATH # Insert config inside location{}
 ./DNSConfigForItest.sh
