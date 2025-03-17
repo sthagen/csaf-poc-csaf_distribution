@@ -432,6 +432,7 @@ type downloadContext struct {
 
 func newDownloadContext(d *downloader, label csaf.TLPLabel) *downloadContext {
 	dc := &downloadContext{
+		d:      d,
 		client: d.httpClient(),
 		lower:  strings.ToLower(string(label)),
 		expr:   util.NewPathEval(),
