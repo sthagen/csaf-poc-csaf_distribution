@@ -781,11 +781,11 @@ func loadSignature(client util.Client, p string) (*crypto.PGPSignature, []byte, 
 	if err != nil {
 		return nil, nil, err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil, fmt.Errorf(
 			"fetching signature from '%s' failed: %s (%d)", p, resp.Status, resp.StatusCode)
 	}
-	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, nil, err
@@ -846,11 +846,11 @@ func loadHash(client util.Client, p string) ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil, fmt.Errorf(
 			"fetching hash from '%s' failed: %s (%d)", p, resp.Status, resp.StatusCode)
 	}
-	defer resp.Body.Close()
 	var data bytes.Buffer
 	tee := io.TeeReader(resp.Body, &data)
 	hash, err := util.HashFromReader(tee)
