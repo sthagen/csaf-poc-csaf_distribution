@@ -76,11 +76,10 @@ func (l *schemaLoader) loadHTTPURL(url string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		_ = resp.Body.Close()
 		return nil, fmt.Errorf("%s returned status code %d", url, resp.StatusCode)
 	}
-	defer resp.Body.Close()
 
 	return jsonschema.UnmarshalJSON(resp.Body)
 }
