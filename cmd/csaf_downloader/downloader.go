@@ -343,7 +343,7 @@ func (d *downloader) loadOpenPGPKeys(
 			continue
 		}
 
-		u := base.ResolveReference(up).String()
+		u := base.JoinPath(up.Path).String()
 
 		res, err := client.Get(u)
 		if err != nil {
