@@ -222,6 +222,7 @@ func (p *processor) processROLIEFeeds(feeds [][]csaf.Feed) error {
 	if err != nil {
 		return err
 	}
+	base.Path = ""
 	p.badROLIEFeed.use()
 
 	advisories := map[*csaf.Feed][]csaf.AdvisoryFile{}
@@ -291,7 +292,7 @@ func (p *processor) processROLIEFeeds(feeds [][]csaf.Feed) error {
 			// TODO: Issue a warning if we want check AMBER+ without an
 			// authorizing client.
 
-			if err := p.integrity(files, feedBase, rolieMask, p.badProviderMetadata.add); err != nil {
+			if err := p.integrity(files, base.String(), rolieMask, p.badProviderMetadata.add); err != nil {
 				if err != errContinue {
 					return err
 				}

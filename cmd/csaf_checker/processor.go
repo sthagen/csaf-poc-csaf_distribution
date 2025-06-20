@@ -632,7 +632,6 @@ func (p *processor) integrity(
 	if err != nil {
 		return err
 	}
-	makeAbs := makeAbsolute(b)
 	client := p.httpClient()
 
 	var data bytes.Buffer
@@ -643,7 +642,6 @@ func (p *processor) integrity(
 			lg(ErrorType, "Bad URL %s: %v", f, err)
 			continue
 		}
-		fp = makeAbs(fp)
 
 		u := misc.JoinURL(b, fp).String()
 
@@ -777,7 +775,6 @@ func (p *processor) integrity(
 				lg(ErrorType, "Bad URL %s: %v", x.url(), err)
 				continue
 			}
-			hu = makeAbs(hu)
 			hashFile := misc.JoinURL(b, hu).String()
 
 			p.checkTLS(hashFile)
@@ -827,7 +824,6 @@ func (p *processor) integrity(
 			lg(ErrorType, "Bad URL %s: %v", f.SignURL(), err)
 			continue
 		}
-		su = makeAbs(su)
 		sigFile := misc.JoinURL(b, su).String()
 		p.checkTLS(sigFile)
 
@@ -1527,6 +1523,7 @@ func (p *processor) checkPGPKeys(_ string) error {
 	if err != nil {
 		return err
 	}
+	base.Path = ""
 
 	for i := range keys {
 		key := &keys[i]

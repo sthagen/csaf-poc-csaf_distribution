@@ -295,6 +295,7 @@ func (afp *AdvisoryFileProcessor) processROLIE(
 			slog.Error("Cannot parse feed base URL", "url", fb, "err", err)
 			continue
 		}
+		feedBaseURL.Path = ""
 
 		res, err := afp.client.Get(feedURL.String())
 		if err != nil {
