@@ -1437,6 +1437,7 @@ func (p *processor) checkWellknown(domain string) {
 	if err != nil {
 		p.badWellknownMetadata.add(ErrorType,
 			fmt.Sprintf("Fetching %s failed: %v", path, err))
+		return
 	}
 	if res.StatusCode != http.StatusOK {
 		p.badWellknownMetadata.add(ErrorType, fmt.Sprintf("Fetching %s failed. Status code %d (%s)",
