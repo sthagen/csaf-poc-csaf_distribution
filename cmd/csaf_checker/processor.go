@@ -255,8 +255,7 @@ func (p *processor) run(domains []string) (*Report, error) {
 			log.Printf("Could not parse the Provider-Metadata.json of: %s\n", d)
 		}
 		if err := p.checkDomain(d); err != nil {
-			log.Printf("Failed to find valid provider-metadata.json for domain %s: %v. "+
-				"Continuing with next domain.", d, err)
+			log.Printf("Failed to find valid provider-metadata.json for domain %s: %v. ", d, err)
 		}
 		domain := &Domain{Name: d}
 
@@ -267,8 +266,10 @@ func (p *processor) run(domains []string) (*Report, error) {
 		}
 
 		if domain.Role == nil {
-			log.Printf("No role found in meta data. Ignoring domain %q\n", d)
-			continue
+			log.Printf("No role found in meta data for domain %q\n", d)
+			// Assume provider to continue report generation
+			role := csaf.MetadataRolePublisher
+			domain.Role = &role
 		}
 
 		rules := roleRequirements(*domain.Role)
