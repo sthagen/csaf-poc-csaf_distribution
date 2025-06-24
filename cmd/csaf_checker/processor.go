@@ -267,8 +267,8 @@ func (p *processor) run(domains []string) (*Report, error) {
 
 		if domain.Role == nil {
 			log.Printf("No role found in meta data for domain %q\n", d)
-			// Assume provider to continue report generation
-			role := csaf.MetadataRolePublisher
+			// Assume trusted provider to continue report generation
+			role := csaf.MetadataRoleTrustedProvider
 			domain.Role = &role
 		}
 
