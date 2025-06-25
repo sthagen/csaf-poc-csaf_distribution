@@ -103,7 +103,13 @@ dist: build_linux build_win build_mac_amd64 build_mac_arm64
 		cp docs/$${f}.md dist/$(DISTDIR)-macos/docs ; \
 	done
 	mkdir dist/$(DISTDIR)-gnulinux-amd64
-	cp -r README.md docs bin-linux-amd64 dist/$(DISTDIR)-gnulinux-amd64
+	cp -r README.md bin-linux-amd64 dist/$(DISTDIR)-gnulinux-amd64
+	# adjust which docs to copy
+	mkdir -p dist/tmp_docs
+	cp -r docs/examples dist/tmp_docs
+	cp docs/*.md dist/tmp_docs
+	cp -r dist/tmp_docs dist/$(DISTDIR)-gnulinux-amd64/docs
+	rm -rf dist/tmp_docs
 	cd dist/ ; zip -r $(DISTDIR)-windows-amd64.zip $(DISTDIR)-windows-amd64/
 	cd dist/ ; tar -cvmlzf $(DISTDIR)-gnulinux-amd64.tar.gz $(DISTDIR)-gnulinux-amd64/
 	cd dist/ ; tar -cvmlzf $(DISTDIR)-macos.tar.gz $(DISTDIR)-macos
