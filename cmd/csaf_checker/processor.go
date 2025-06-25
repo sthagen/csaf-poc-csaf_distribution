@@ -251,14 +251,16 @@ func (p *processor) run(domains []string) (*Report, error) {
 		p.reset()
 
 		if !p.checkProviderMetadata(d) {
-			// We cannot build a report if the provider metadata cannot be parsed.
-			log.Printf("Could not parse the Provider-Metadata.json of: %s\n", d)
-			continue
+			// We need to fail the domain if the PMD cannot be parsed.
+			p.badProviderMetadata.use()
+			message := fmt.Sprintf("Could not parse the Provider-Metadata.json of: %s", d)
+			p.badProviderMetadata.error(message)
+
 		}
 		if err := p.checkDomain(d); err != nil {
-			log.Printf("Failed to find valid provider-metadata.json for domain %s: %v. "+
-				"Continuing with next domain.", d, err)
-			continue
+			p.badProviderMetadata.use()
+			message := fmt.Sprintf("Failed to find valid provider-metadata.json for domain %s: %v. ", d, err)
+			p.badProviderMetadata.error(message)
 		}
 		domain := &Domain{Name: d}
 
@@ -269,8 +271,10 @@ func (p *processor) run(domains []string) (*Report, error) {
 		}
 
 		if domain.Role == nil {
-			log.Printf("No role found in meta data. Ignoring domain %q\n", d)
-			continue
+			log.Printf("No role found in meta data for domain %q\n", d)
+			// Assume trusted provider to continue report generation
+			role := csaf.MetadataRoleTrustedProvider
+			domain.Role = &role
 		}
 
 		rules := roleRequirements(*domain.Role)
@@ -1431,7 +1435,6 @@ func (p *processor) checkDNS(domain string) {
 // checkWellknown checks if the provider-metadata.json file is
 // available under the /.well-known/csaf/ directory.
 func (p *processor) checkWellknown(domain string) {
-
 	p.badWellknownMetadata.use()
 	client := p.httpClient()
 	path := "https://" + domain + "/.well-known/csaf/provider-metadata.json"
@@ -1440,6 +1443,7 @@ func (p *processor) checkWellknown(domain string) {
 	if err != nil {
 		p.badWellknownMetadata.add(ErrorType,
 			fmt.Sprintf("Fetching %s failed: %v", path, err))
+		return
 	}
 	if res.StatusCode != http.StatusOK {
 		p.badWellknownMetadata.add(ErrorType, fmt.Sprintf("Fetching %s failed. Status code %d (%s)",
