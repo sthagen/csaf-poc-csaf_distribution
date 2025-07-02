@@ -44,14 +44,13 @@ is a CSAF Aggregator, to list or mirror providers.
 
 ## Use as go library
 
-The modules of this repository can be used as library from other Go applications. [ISDuBA](https://github.com/ISDuBA/ISDuBA) does so, for example.
-But there is only limited support, and thus it is _not officially supported_.
-There are plans to change this without concrete schedule, with a future major release, e.g. see [#367](https://github.com/gocsaf/csaf/issues/367).
+The modules of this repository can be used as library by other Go applications. [ISDuBA](https://github.com/ISDuBA/ISDuBA) does so, for example.
+But there is only limited support and thus it is _not officially supported_.
+There are plans to change this without a concrete schedule within a future major release, e.g. see [#367](https://github.com/gocsaf/csaf/issues/367).
 
-Initially envisioned as toolbox, it was not constructed as a library,
-and to name one issue, exposes to many functions.
-This leads to problems like [#634](https://github.com/gocsaf/csaf/issues/634), where we have to accept that with 3.2.0 there was an unintended API change,
-that we now have to live with.
+Initially envisioned as a toolbox, it was not constructed as a library,
+and to name one issue, exposes too many functions.
+This leads to problems like [#634](https://github.com/gocsaf/csaf/issues/634), where we have to accept that with 3.2.0 there was an unintended API change.
 
 ### [examples](./examples/README.md)
 are small examples of how to use `github.com/gocsaf/csaf` as an API. Currently this is a work in progress.
