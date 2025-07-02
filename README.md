@@ -113,7 +113,7 @@ For further details of the development process consult our [development page](./
 > 1. Adjust your HTML links.
 > 2. Adjust your go module paths, see [#579](https://github.com/gocsaf/csaf/issues/579#issuecomment-2497244379).
 >
-> (This repository was moved here from https://github.com/csaf-poc/csaf_distribution on 2024-10-28. The old one is deprecated and redirection will be switched off somtimes in 2025.)
+> (This repository was moved here from https://github.com/csaf-poc/csaf_distribution on 2024-10-28. The old one is deprecated and redirection will be switched off sometime in 2025.)
 
 ## License
 
