@@ -71,6 +71,7 @@ func (w *worker) mirrorInternal() (*csaf.AggregatorCSAFProvider, error) {
 	if err != nil {
 		return nil, err
 	}
+	base.Path = ""
 
 	afp := csaf.NewAdvisoryFileProcessor(
 		w.client,
