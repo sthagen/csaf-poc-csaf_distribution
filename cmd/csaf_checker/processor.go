@@ -1374,6 +1374,7 @@ func (p *processor) checkSecurityFolder(folder string) string {
 	if err != nil {
 		return err.Error()
 	}
+	base.Path = ""
 
 	u = misc.JoinURL(base, up).String()
 	p.checkTLS(u)
