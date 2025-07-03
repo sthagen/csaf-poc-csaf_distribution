@@ -3,8 +3,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// SPDX-FileCopyrightText: 2023 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
-// Software-Engineering: 2023 Intevation GmbH <https://intevation.de>
+// SPDX-FileCopyrightText: 2025 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
+// Software-Engineering: 2025 Intevation GmbH <https://intevation.de>
 
 package misc
 
@@ -14,20 +14,23 @@ import (
 	"io"
 )
 
-// StrictJSONParse provides JSON parsing with stronger validation.
+// StrictJSONParse creates a JSON decoder that decodes an interface
+// while not allowing unknown fields nor trailing data
 func StrictJSONParse(jsonData io.Reader, target interface{}) error {
 	decoder := json.NewDecoder(jsonData)
-
+	// Don't allow unknown fields
 	decoder.DisallowUnknownFields()
 
-	err := decoder.Decode(target)
-	if err != nil {
-		return fmt.Errorf("strictJSONParse: %w", err)
+	if err := decoder.Decode(target); err != nil {
+		return fmt.Errorf("JSON decoding error: %w", err)
 	}
 
-	token, err := decoder.Token()
-	if err != io.EOF {
-		return fmt.Errorf("strictJSONParse: unexpected trailing data after JSON: token: %v, err: %v", token, err)
+	// Check for any trailing data after the main JSON structure
+	if _, err := decoder.Token(); err != io.EOF {
+		if err != nil {
+			return fmt.Errorf("error reading trailing data: %w", err)
+		}
+		return fmt.Errorf("unexpected trailing data after JSON object")
 	}
 
 	return nil
