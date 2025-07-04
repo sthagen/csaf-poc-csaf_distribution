@@ -16,7 +16,7 @@ import (
 
 // StrictJSONParse creates a JSON decoder that decodes an interface
 // while not allowing unknown fields nor trailing data
-func StrictJSONParse(jsonData io.Reader, target interface{}) error {
+func StrictJSONParse(jsonData io.Reader, target any) error {
 	decoder := json.NewDecoder(jsonData)
 	// Don't allow unknown fields
 	decoder.DisallowUnknownFields()
