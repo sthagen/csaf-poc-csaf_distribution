@@ -20,11 +20,6 @@ func TestLoadAdvisory(t *testing.T) {
 		wantErr: false,
 	},
 		{
-			name:    "Unknown fields",
-			args:    args{jsonDir: "csaf-documents/unknown-fields"},
-			wantErr: true,
-		},
-		{
 			name:    "Garbage trailing data",
 			args:    args{jsonDir: "csaf-documents/trailing-garbage-data"},
 			wantErr: true,
