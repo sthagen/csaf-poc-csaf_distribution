@@ -104,8 +104,9 @@ ignorepattern = [".*white.*", ".*red.*"]
 
 #### Timerange option
 
-The `timerange` parameter enables downloading advisories which last changes falls
-into a given intervall. There are three possible notations:
+The `time_range` parameter enables downloading advisories
+which last changes falls into a given intervall.
+There are three possible notations:
 
 1. Relative. If the given string follows the rules of a
    [Go duration](https://pkg.go.dev/time@go1.20.6#ParseDuration),
