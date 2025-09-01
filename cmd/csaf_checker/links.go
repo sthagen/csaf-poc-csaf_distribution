@@ -9,10 +9,11 @@
 package main
 
 import (
-	"github.com/gocsaf/csaf/v3/internal/misc"
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/gocsaf/csaf/v3/internal/misc"
 
 	"github.com/PuerkitoBio/goquery"
 
@@ -94,7 +95,12 @@ func (pgs pages) listed(
 				return err
 			}
 			// Links may be relative
-			abs := misc.JoinURL(baseURL, u).String()
+			var abs string
+			if u.IsAbs() {
+				abs = u.String()
+			} else {
+				abs = misc.JoinURL(baseURL, u).String()
+			}
 			content.links.Add(abs)
 			return nil
 		})
