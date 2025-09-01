@@ -81,8 +81,9 @@ func (p *processor) create() error {
 	}
 	defer resp.Body.Close()
 
+	var createError error
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Create failed: %s\n", resp.Status)
+		createError = fmt.Errorf("create failed: %s", resp.Status)
 	}
 
 	var result struct {
@@ -100,7 +101,7 @@ func (p *processor) create() error {
 
 	writeStrings("Errors:", result.Errors)
 
-	return nil
+	return createError
 }
 
 // uploadRequest creates the request for uploading a csaf document by passing the filename.
