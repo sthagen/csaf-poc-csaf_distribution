@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
           go-version: "stable"
 
@@ -27,12 +27,12 @@ jobs:
         run: go vet ./...
 
       - name: gofmt
-        uses: Jerome1337/gofmt-action@v1.0.4
+        uses: Jerome1337/gofmt-action@v1.0.5
         with:
           gofmt-flags: "-l -d"
 
       - name: Revive Action
-        uses: morphy2k/revive-action@v2.7.4
+        uses: morphy2k/revive-action@v2
 
       - name: Tests
         run: go test -v ./...
@@ -46,17 +46,17 @@ jobs:
         pull-requests: write # Modver needs to write comments/status on PRs
       steps:
         - name: Checkout
-          uses: actions/checkout@v4
+          uses: actions/checkout@v5
           with:
             fetch-depth: 0 # Modver needs full history for comparison
 
         - name: Set up Go
-          uses: actions/setup-go@v4
+          uses: actions/setup-go@v6
           with:
             go-version: "stable"
 
         - name: Modver
-          uses: bobg/modver@v2.11.0
+          uses: bobg/modver@v2.12.0
           with:
             github_token: ${{ secrets.GITHUB_TOKEN }}
             pull_request_url: https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
