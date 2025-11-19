@@ -9,10 +9,8 @@
 package csaf
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
-	"os"
 	"sort"
 	"time"
 
@@ -199,14 +197,6 @@ type ROLIEFeed struct {
 
 // LoadROLIEFeed loads a ROLIE feed from a reader.
 func LoadROLIEFeed(r io.Reader) (*ROLIEFeed, error) {
-	all, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile("rolie.json", all, 060); err != nil {
-		return nil, err
-	}
-	r = bytes.NewReader(all)
 	var rf ROLIEFeed
 	if err := misc.StrictJSONParse(r, &rf); err != nil {
 		return nil, err
