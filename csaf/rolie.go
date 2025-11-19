@@ -9,8 +9,10 @@
 package csaf
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"os"
 	"sort"
 	"time"
 
@@ -169,14 +171,15 @@ type Format struct {
 
 // Entry for ROLIE.
 type Entry struct {
-	ID        string    `json:"id"`
-	Titel     string    `json:"title"`
-	Link      []Link    `json:"link"`
-	Published TimeStamp `json:"published"`
-	Updated   TimeStamp `json:"updated"`
-	Summary   *Summary  `json:"summary,omitempty"`
-	Content   Content   `json:"content"`
-	Format    Format    `json:"format"`
+	ID        string          `json:"id"`
+	Titel     string          `json:"title"`
+	Link      []Link          `json:"link"`
+	Published TimeStamp       `json:"published"`
+	Updated   TimeStamp       `json:"updated"`
+	Summary   *Summary        `json:"summary,omitempty"`
+	Content   Content         `json:"content"`
+	Format    Format          `json:"format"`
+	Category  []ROLIECategory `json:"category,omitempty"`
 }
 
 // FeedData is the content of the ROLIE feed.
@@ -196,6 +199,14 @@ type ROLIEFeed struct {
 
 // LoadROLIEFeed loads a ROLIE feed from a reader.
 func LoadROLIEFeed(r io.Reader) (*ROLIEFeed, error) {
+	all, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile("rolie.json", all, 060); err != nil {
+		return nil, err
+	}
+	r = bytes.NewReader(all)
 	var rf ROLIEFeed
 	if err := misc.StrictJSONParse(r, &rf); err != nil {
 		return nil, err
