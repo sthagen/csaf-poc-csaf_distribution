@@ -174,7 +174,7 @@ type Entry struct {
 	Author      *json.RawMessage `json:"author,omitempty"`
 	Category    []ROLIECategory  `json:"category,omitempty"`
 	Content     Content          `json:"content"`
-	Contributor *json.RawMessage `json:"contibutor,omitempty"`
+	Contributor *json.RawMessage `json:"contributor,omitempty"`
 	ID          string           `json:"id"`
 	Link        []Link           `json:"link"`
 	Published   TimeStamp        `json:"published"`
