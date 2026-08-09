@@ -253,7 +253,6 @@ func (p *processor) run(ctx context.Context, domains []string) (*Report, error) 
 
 	for _, d := range domains {
 		p.reset()
-
 		domain := &Domain{Name: d}
 		if !p.checkProviderMetadata(ctx, d) {
 			// We need to fail the domain if the PMD cannot be parsed.
@@ -265,7 +264,13 @@ func (p *processor) run(ctx context.Context, domains []string) (*Report, error) 
 			}).report(p, domain)
 			report.Domains = append(report.Domains, domain)
 			continue
+		} else if p.cfg.PreFlight {
+			log.Printf("Preflight check passed. Domain: %q, pmdURL: %s\n", d, p.pmdURL)
+			continue
 		}
+		domain.URL = &p.pmdURL
+		log.Printf("PMD used %q\n", p.pmdURL)
+
 		if err := p.checkDomain(ctx, d); err != nil {
 			p.badProviderMetadata.use()
 			p.badProviderMetadata.error("Failed to find valid provider-metadata.json for domain %s: %v. ", d, err)
@@ -304,6 +309,9 @@ func (p *processor) run(ctx context.Context, domains []string) (*Report, error) 
 		}
 
 		report.Domains = append(report.Domains, domain)
+	}
+	if p.cfg.PreFlight {
+		return nil, nil
 	}
 
 	return &report, nil
@@ -425,6 +433,9 @@ func (p *processor) checkRedirect(r *http.Request, via []*http.Request) error {
 // fullClient returns a fully configure HTTP client.
 func (p *processor) fullClient() util.ClientWithContext {
 	hClient := http.Client{}
+	if p.cfg.ClientTimeout != nil {
+		hClient.Timeout = *p.cfg.ClientTimeout
+	}
 
 	hClient.CheckRedirect = p.checkRedirect
 
@@ -470,6 +481,9 @@ func (p *processor) fullClient() util.ClientWithContext {
 // basicClient returns a http Client w/o certs and headers.
 func (p *processor) basicClient() util.ClientWithContext {
 	hClient := http.Client{}
+	if p.cfg.ClientTimeout != nil {
+		hClient.Timeout = *p.cfg.ClientTimeout
+	}
 	if p.cfg.Insecure {
 		hClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -1529,10 +1543,17 @@ func (p *processor) checkSecurityFolder(ctx context.Context, folder string) stri
 
 	u, err := func() (string, error) {
 		defer res.Body.Close()
-		lines, err := csaf.ExtractProviderURL(res.Body, false)
+		lines, err := csaf.ExtractProviderURL(res.Body, true)
 		var u string
 		if len(lines) > 0 {
 			u = lines[0]
+			for i, unused := range lines[1:] {
+				if i == 0 {
+					p.badSecurity.use()
+				}
+				p.badSecurity.add(WarnType, "Unused PMD in security.txt: %s", unused)
+				log.Printf("WARN: Unused PMD in security.txt: %s\n", unused)
+			}
 		}
 		return u, err
 	}()
